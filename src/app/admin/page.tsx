@@ -767,7 +767,7 @@ export default function AdminPage() {
         {activeSection === 'students' && (
           <div className="space-y-6">
             {/* Header with Search */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white shadow-sm p-4 rounded-xl border border-blue-100">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white shadow-sm p-5 sm:p-6 rounded-xl border border-blue-100">
               <div>
                 <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                   Registered Students
@@ -899,7 +899,7 @@ export default function AdminPage() {
                 <div className="block md:hidden space-y-4">
                   {filteredStudents.length > 0 ? (
                     filteredStudents.map((student) => (
-                      <div key={student.id} className="bg-white border border-blue-100 p-5 rounded-2xl space-y-4 shadow-sm">
+                      <div key={student.id} className="bg-white border border-blue-100 p-5 sm:p-6 rounded-2xl space-y-4 shadow-sm">
                         <div className="flex flex-col gap-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <Link href={`/admin/student/${student.id}`} className="text-blue-600 hover:text-blue-700 hover:underline transition font-bold text-base">
@@ -977,7 +977,7 @@ export default function AdminPage() {
               </div>
 
               {/* Toppers / Leaderboard Panel */}
-              <div className="lg:col-span-1 bg-white border border-blue-100 rounded-2xl p-6 shadow-md space-y-4">
+              <div className="lg:col-span-1 bg-white border border-blue-100 rounded-2xl p-6 sm:p-8 shadow-md space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
                     <Trophy className="h-4.5 w-4.5 text-yellow-500" />
@@ -1051,7 +1051,7 @@ export default function AdminPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Form Column */}
             <div className="lg:col-span-1">
-              <div className="bg-white border border-blue-100 p-6 rounded-2xl shadow-md space-y-6">
+              <div className="bg-white border border-blue-100 p-6 sm:p-8 rounded-2xl shadow-md space-y-6">
                 <div>
                   <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                     <Plus className="h-5 w-5 text-blue-400" />
@@ -1133,7 +1133,7 @@ export default function AdminPage() {
                   videos.map((vid) => (
                     <div 
                       key={vid.id} 
-                      className="group bg-white hover:bg-blue-50/50 border border-slate-200 hover:border-blue-200 shadow-sm p-4.5 rounded-2xl flex flex-col justify-between transition-all"
+                      className="group bg-white hover:bg-blue-50/50 border border-slate-200 hover:border-blue-200 shadow-sm p-5 sm:p-6 rounded-2xl flex flex-col justify-between transition-all"
                     >
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
@@ -1188,7 +1188,7 @@ export default function AdminPage() {
               
               {/* Add / Edit Task Form Card */}
               <div className="lg:col-span-1">
-                <div className="bg-white border border-blue-100 p-6 rounded-2xl shadow-md space-y-4">
+                <div className="bg-white border border-blue-100 p-6 sm:p-8 rounded-2xl shadow-md space-y-4">
                   <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
                     {editingTask ? (
                       <>
@@ -1284,7 +1284,7 @@ export default function AdminPage() {
                       {mainTasks.map((task, idx) => (
                         <div
                           key={task.id}
-                          className="flex items-center justify-between p-4 sm:p-5 hover:bg-blue-50/50 transition group"
+                          className="flex items-center justify-between p-5 sm:p-6 hover:bg-blue-50/50 transition group"
                         >
                           <div className="flex items-center gap-3.5 min-w-0">
                             <span className="text-xs font-mono text-slate-600 bg-slate-100 border border-slate-200 w-6 h-6 flex items-center justify-center rounded-lg font-bold shrink-0">

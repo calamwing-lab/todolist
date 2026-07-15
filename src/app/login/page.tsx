@@ -221,9 +221,9 @@ export default function LoginPage() {
             {isRegistering ? (
               <form className="space-y-5" onSubmit={handleRegister}>
                 {error && (
-                  <div className="flex items-center gap-3 rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-800 animate-in fade-in slide-in-from-top-1 duration-200">
-                    <ShieldAlert className="h-5 w-5 shrink-0 text-red-600" />
-                    <span>{error}</span>
+                  <div className="flex flex-row items-start gap-3 w-full rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-800 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <ShieldAlert className="h-5 w-5 shrink-0 text-red-600 mt-0.5" />
+                    <span className="break-words min-w-0 flex-1">{error}</span>
                   </div>
                 )}
 
@@ -375,9 +375,9 @@ export default function LoginPage() {
             ) : (
               <form className="space-y-6" onSubmit={handleLogin}>
                 {error && (
-                  <div className="flex items-center gap-3 rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-800 animate-in fade-in slide-in-from-top-1 duration-200">
-                    <ShieldAlert className="h-5 w-5 shrink-0 text-red-600" />
-                    <span>{error}</span>
+                  <div className="flex flex-row items-start gap-3 w-full rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-800 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <ShieldAlert className="h-5 w-5 shrink-0 text-red-600 mt-0.5" />
+                    <span className="break-words min-w-0 flex-1">{error}</span>
                   </div>
                 )}
 

@@ -279,7 +279,7 @@ export default function StudentHistoryPage() {
             <div className="lg:col-span-1 space-y-6">
               
               {/* Student Profile Card */}
-              <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-6">
+              <div className="bg-white border border-slate-200 p-6 sm:p-8 rounded-2xl shadow-sm space-y-6">
                 <div className="flex items-start gap-4">
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-500 text-white font-extrabold shadow-md shadow-blue-500/10 shrink-0">
                     <GraduationCap className="h-6 w-6" />
@@ -336,7 +336,7 @@ export default function StudentHistoryPage() {
               </div>
 
               {/* Personal Tasks Card for Admin */}
-              <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-4">
+              <div className="bg-white border border-slate-200 p-6 sm:p-8 rounded-2xl shadow-sm space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                     <CheckCircle2 className="h-4.5 w-4.5 text-blue-600" />
@@ -423,7 +423,7 @@ export default function StudentHistoryPage() {
                 })
 
                 return (
-                  <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-5 hover:shadow-md transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-4 duration-500 delay-75">
+                  <div className="bg-white border border-slate-200 p-6 sm:p-8 rounded-2xl shadow-sm space-y-5 hover:shadow-md transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-4 duration-500 delay-75">
                     <div className="flex items-center justify-between border-b border-slate-100 pb-3 gap-2">
                       <h3 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 min-w-0">
                         <Calendar className="h-4.5 w-4.5 text-blue-600 shrink-0" />
@@ -500,7 +500,7 @@ export default function StudentHistoryPage() {
                       {/* Accordion Header */}
                       <div 
                         onClick={() => toggleDayExpansion(day.date)}
-                        className="flex items-center justify-between p-4 sm:p-5 hover:bg-slate-50/50 transition cursor-pointer select-none"
+                        className="flex items-center justify-between p-5 sm:p-6 hover:bg-slate-50/50 transition cursor-pointer select-none"
                       >
                         <div className="flex items-center gap-3">
                           <div className="h-2.5 w-2.5 rounded-full bg-blue-600" />
@@ -534,7 +534,7 @@ export default function StudentHistoryPage() {
 
                       {/* Accordion Detail list with interactive toggles */}
                       {isExpanded && (
-                        <div className="border-t border-slate-100 bg-slate-50/50 p-4 sm:p-6 animate-in slide-in-from-top-1 duration-150">
+                        <div className="border-t border-slate-100 bg-slate-50/50 p-5 sm:p-8 animate-in slide-in-from-top-1 duration-150">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {mainTasks.map((task) => {
                               const isCompleted = !!day.task_data[task.id]

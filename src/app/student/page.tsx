@@ -533,7 +533,7 @@ export default function StudentPage() {
           {/* Left Column: Embed & Info */}
           <div className="lg:col-span-1 space-y-6">
             {/* Welcome Card */}
-            <div className="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm flex flex-col items-center text-center space-y-2 hover:scale-[1.005] hover:shadow-md transition-all duration-300 ease-out cursor-default animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className="bg-white border border-slate-100 p-6 sm:p-8 rounded-2xl shadow-sm flex flex-col items-center text-center space-y-2 hover:scale-[1.005] hover:shadow-md transition-all duration-300 ease-out cursor-default animate-in fade-in slide-in-from-top-4 duration-500">
               <span className="text-xs text-slate-600 font-bold uppercase tracking-wider flex items-center justify-center gap-2">
                 Welcome
               </span>
@@ -547,7 +547,7 @@ export default function StudentPage() {
 
             {/* Sunday: Language Day Special Card */}
             {new Date().getDay() === 0 && (
-              <div className="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm space-y-4 animate-in fade-in slide-in-from-top-4 duration-500 hover:scale-[1.005] transition-all duration-300">
+              <div className="bg-white border border-slate-100 p-6 sm:p-8 rounded-2xl shadow-sm space-y-4 animate-in fade-in slide-in-from-top-4 duration-500 hover:scale-[1.005] transition-all duration-300">
                 <div className="flex items-center justify-between border-b border-slate-100/65 pb-3 gap-2">
                   <h3 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 min-w-0">
                     <Globe className="h-4.5 w-4.5 text-blue-600 animate-pulse shrink-0" />
@@ -573,7 +573,7 @@ export default function StudentPage() {
             )}
 
             {/* Badge & Ranking Card */}
-            <div className="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm space-y-5 animate-in fade-in slide-in-from-top-4 duration-500 delay-75 hover:scale-[1.005] hover:shadow-md transition-all duration-300 ease-out">
+            <div className="bg-white border border-slate-100 p-6 sm:p-8 rounded-2xl shadow-sm space-y-5 animate-in fade-in slide-in-from-top-4 duration-500 delay-75 hover:scale-[1.005] hover:shadow-md transition-all duration-300 ease-out">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3 gap-2">
                 <h3 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 min-w-0">
                   <Trophy className="h-4 w-4 text-blue-600 shrink-0" />
@@ -646,7 +646,7 @@ export default function StudentPage() {
             </div>
 
             {/* Personal Tasks Card */}
-            <div className="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm space-y-4 animate-in fade-in slide-in-from-top-4 duration-500 delay-100 hover:scale-[1.005] hover:shadow-md transition-all duration-300 ease-out">
+            <div className="bg-white border border-slate-100 p-6 sm:p-8 rounded-2xl shadow-sm space-y-4 animate-in fade-in slide-in-from-top-4 duration-500 delay-100 hover:scale-[1.005] hover:shadow-md transition-all duration-300 ease-out">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3 gap-2">
                 <h3 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 min-w-0">
                   <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
@@ -743,7 +743,7 @@ export default function StudentPage() {
             </div>
 
             {/* Leaderboard / Rank List Card */}
-            <div className="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm space-y-4 animate-in fade-in slide-in-from-top-4 duration-500 delay-150 hover:scale-[1.005] hover:shadow-md transition-all duration-300 ease-out">
+            <div className="bg-white border border-slate-100 p-6 sm:p-8 rounded-2xl shadow-sm space-y-4 animate-in fade-in slide-in-from-top-4 duration-500 delay-150 hover:scale-[1.005] hover:shadow-md transition-all duration-300 ease-out">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3 gap-2">
                 <h3 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 min-w-0">
                   <Trophy className="h-4 w-4 text-amber-500 shrink-0 animate-bounce" />
@@ -815,7 +815,7 @@ export default function StudentPage() {
             </div>
 
             {/* Video Section */}
-            <div id="video-player-section" className="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm space-y-4 hover:scale-[1.005] hover:shadow-md transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-4 duration-500 delay-200">
+            <div id="video-player-section" className="bg-white border border-slate-100 p-6 sm:p-8 rounded-2xl shadow-sm space-y-4 hover:scale-[1.005] hover:shadow-md transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-4 duration-500 delay-200">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                   <Play className="h-4 w-4 text-blue-600" />
@@ -859,7 +859,7 @@ export default function StudentPage() {
 
           {/* Right Column: To-Do Checklist */}
           <div className="lg:col-span-2 space-y-6 animate-in fade-in slide-in-from-top-4 duration-500 delay-100">
-            <div className="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm space-y-6 hover:shadow-md transition-all duration-300 ease-out">
+            <div className="bg-white border border-slate-100 p-6 sm:p-8 rounded-2xl shadow-sm space-y-6 hover:shadow-md transition-all duration-300 ease-out">
               
               {/* Header / Date */}
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
@@ -960,7 +960,7 @@ export default function StudentPage() {
             </div>
 
             {/* 7-Day Progress Graph Card */}
-            <div className="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm space-y-5 hover:shadow-md transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-4 duration-500 delay-150">
+            <div className="bg-white border border-slate-100 p-6 sm:p-8 rounded-2xl shadow-sm space-y-5 hover:shadow-md transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-4 duration-500 delay-150">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3 gap-2">
                 <h3 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 min-w-0">
                   <Calendar className="h-4.5 w-4.5 text-blue-600 shrink-0" />
