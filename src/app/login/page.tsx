@@ -72,33 +72,40 @@ export default function LoginPage() {
       return
     }
 
-    let res;
-    if (isAdminLogin) {
-      console.log('Attempting admin login with:', { phone, password });
-      res = await login(phone, password)
-    } else {
-      // Format phone number: strip spaces/dashes and ensure leading country code
-      let formattedPhone = phone.trim().replace(/[\s-()]/g, '')
-      if (!formattedPhone.startsWith('+')) {
-        if (formattedPhone.length === 12 && formattedPhone.startsWith('91')) {
-          formattedPhone = '+' + formattedPhone
-        } else if (formattedPhone.length === 10) {
-          formattedPhone = '+91' + formattedPhone
-        } else {
-          formattedPhone = '+' + formattedPhone
-        }
-      }
-      res = await login(formattedPhone, password)
-    }
-
-    if (res.success && res.user) {
-      if (res.user.role === 'admin') {
-        router.replace('/admin')
+    try {
+      let res;
+      if (isAdminLogin) {
+        console.log('Attempting admin login with:', { phone, password });
+        res = await login(phone, password)
       } else {
-        router.replace('/student')
+        // Format phone number: strip spaces/dashes and ensure leading country code
+        let formattedPhone = phone.trim().replace(/[\s-()]/g, '')
+        if (!formattedPhone.startsWith('+')) {
+          if (formattedPhone.length === 12 && formattedPhone.startsWith('91')) {
+            formattedPhone = '+' + formattedPhone
+          } else if (formattedPhone.length === 10) {
+            formattedPhone = '+91' + formattedPhone
+          } else {
+            formattedPhone = '+' + formattedPhone
+          }
+        }
+        res = await login(formattedPhone, password)
       }
-    } else {
-      setError(res.error || 'Invalid credentials or login failed.')
+
+      if (res.success && res.user) {
+        router.refresh()
+        if (res.user.role === 'admin') {
+          router.push('/admin')
+        } else {
+          router.push('/student')
+        }
+      } else {
+        setError(res.error || 'Invalid credentials or login failed.')
+        setLoading(false)
+      }
+    } catch (err: any) {
+      console.error('Login error:', err)
+      setError(err.message || 'An unexpected error occurred during login.')
       setLoading(false)
     }
   }
@@ -123,7 +130,7 @@ export default function LoginPage() {
       return
     }
     // Reject if it starts with + or has a country code prefix
-    if (rawPhone.startsWith('+') || rawPhone.startsWith('91') && rawPhone.length > 10) {
+    if (rawPhone.startsWith('+') || (rawPhone.startsWith('91') && rawPhone.length > 10)) {
       setRegPhoneError('Please enter a valid 10-digit mobile number without country code.')
       setLoading(false)
       return
@@ -149,29 +156,35 @@ export default function LoginPage() {
     // Format to E.164 for Supabase
     const formattedPhone = '+91' + rawPhone
 
-    const res = await addStudentLocal(regName.trim(), formattedPhone, regPassword, regBatch)
-    if (res.success && res.student) {
-      // Auto login
-      const loginRes = await login(formattedPhone, regPassword)
-      if (loginRes.success && loginRes.user) {
-        router.replace('/student')
+    try {
+      const res = await addStudentLocal(regName.trim(), formattedPhone, regPassword, regBatch)
+      if (res.success && res.student) {
+        // Auto login
+        const loginRes = await login(formattedPhone, regPassword)
+        if (loginRes.success && loginRes.user) {
+          router.refresh()
+          router.push('/student')
+        } else {
+          // Fallback to login screen
+          setIsRegistering(false)
+          setPhone(rawPhone)
+          setPassword(regPassword)
+          setError(loginRes.error || 'Registration successful! Please sign in.')
+          setLoading(false)
+        }
       } else {
-        // Fallback to login screen
-        setIsRegistering(false)
-        setPhone(rawPhone)
-        setPassword(regPassword)
-        setError('Registration successful! Please sign in.')
+        setError(res.error || 'Registration failed.')
         setLoading(false)
       }
-    } else {
-      setError(res.error || 'Registration failed.')
+    } catch (err: any) {
+      console.error('Registration error:', err)
+      setError(err.message || 'An unexpected error occurred during registration.')
       setLoading(false)
     }
-
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col justify-center overflow-hidden bg-slate-950 py-12 sm:px-6 lg:px-8">
+    <div className="relative flex min-h-screen flex-col justify-center overflow-hidden bg-slate-950 py-12 px-4 sm:px-6 lg:px-8">
       {/* Background Gradient Mesh */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-blue-900/30 via-slate-950 to-slate-950" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,_var(--tw-gradient-stops))] from-cyan-950/20 via-slate-950/50 to-slate-950" />
@@ -180,7 +193,7 @@ export default function LoginPage() {
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 left-1/3 -translate-x-1/2 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="relative sm:mx-auto sm:w-full sm:max-w-md z-10">
+      <div className="relative w-full sm:mx-auto sm:w-full sm:max-w-md z-10">
         <div className="text-center">
           <div 
             onClick={() => {
@@ -203,7 +216,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="mt-8 w-full sm:mx-auto sm:w-full sm:max-w-md">
           <div className="backdrop-blur-md bg-slate-900/60 border border-slate-800 py-8 px-4 shadow-2xl shadow-slate-950/80 rounded-2xl sm:px-10 ring-1 ring-white/5">
             {isRegistering ? (
               <form className="space-y-5" onSubmit={handleRegister}>

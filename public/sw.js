@@ -1,6 +1,5 @@
 const CACHE_NAME = 'daily-tracker-v1';
 const ASSETS = [
-  '/',
   '/login',
   '/manifest.json'
 ];
