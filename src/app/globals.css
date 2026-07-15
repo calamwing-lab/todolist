@@ -1,26 +1,258 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f0f9ff;
+  --foreground: #0f172a;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: var(--font-inter);
+  --font-mono: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #f0f9ff;
+  color: #0f172a;
+  font-family: var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
+/* ─────────────────────────────────────────────────────────
+   SCROLLBAR
+───────────────────────────────────────────────────────── */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+
+/* ─────────────────────────────────────────────────────────
+   PAGE BACKGROUNDS
+───────────────────────────────────────────────────────── */
+
+/* Full-page dark backgrounds → light sky blue */
+.bg-slate-950 {
+  background-color: #f0f9ff !important;
+}
+
+/* Semi-transparent dark panels → white cards */
+.bg-slate-950\/80,
+.bg-slate-950\/95,
+.bg-slate-950\/60,
+.bg-slate-950\/40,
+.bg-slate-950\/20,
+.bg-slate-950\/10 {
+  background-color: #ffffff !important;
+}
+.hover\:bg-slate-950\/60:hover { background-color: #f8fafc !important; }
+
+.bg-slate-900,
+.bg-slate-900\/80,
+.bg-slate-900\/60,
+.bg-slate-900\/40,
+.bg-slate-900\/20,
+.bg-slate-900\/10 {
+  background-color: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
+}
+.hover\:bg-slate-900\/30:hover,
+.hover\:bg-slate-900\/80:hover { background-color: #f1f5f9 !important; }
+
+.bg-slate-800,
+.bg-slate-800\/80,
+.bg-slate-800\/60,
+.bg-slate-800\/40,
+.bg-slate-800\/30 {
+  background-color: #f1f5f9 !important;
+}
+.hover\:bg-slate-800:hover { background-color: #e2e8f0 !important; }
+
+/* Subtle alternating fill used inside badge containers */
+.bg-slate-950\/40 { background-color: #f8fafc !important; }
+
+/* ─────────────────────────────────────────────────────────
+   BORDERS
+───────────────────────────────────────────────────────── */
+.border-slate-900  { border-color: #e2e8f0 !important; }
+.border-slate-800  { border-color: #cbd5e1 !important; }
+.border-slate-700  { border-color: #94a3b8 !important; }
+
+/* ─────────────────────────────────────────────────────────
+   TEXT COLORS  (map dark-theme shades → legible dark values)
+───────────────────────────────────────────────────────── */
+.text-white:not(button):not(button *):not(a):not(a *) {
+  color: #0f172a !important;
+}
+.text-slate-100 { color: #0f172a !important; }
+.text-slate-200 { color: #1e293b !important; }
+.text-slate-300 { color: #334155 !important; }
+.text-slate-400 { color: #475569 !important; }
+.text-slate-500 { color: #64748b !important; }
+.text-slate-600 { color: #475569 !important; }
+
+/* ─────────────────────────────────────────────────────────
+   BADGE & ACCENT BACKGROUNDS  (light-mode equivalents)
+───────────────────────────────────────────────────────── */
+
+/* Cyan / Blue card accents */
+.bg-cyan-950,
+.bg-cyan-950\/20,
+.bg-cyan-950\/30,
+.bg-cyan-950\/10,
+.bg-cyan-950\/50,
+.bg-blue-950\/15 {
+  background-color: #eff6ff !important;
+}
+.hover\:bg-cyan-950\/30:hover { background-color: #dbeafe !important; }
+
+/* Notification / dropdown panel */
+.bg-slate-950\/95 { background-color: #ffffff !important; }
+
+/* Badge pill backgrounds */
+.bg-rose-950\/30   { background-color: #fff1f2 !important; }
+.bg-blue-950\/30   { background-color: #eff6ff !important; }
+.bg-amber-950\/30  { background-color: #fffbeb !important; }
+.bg-orange-950\/20 { background-color: #fff7ed !important; }
+.bg-amber-950      { background-color: #fffbeb !important; }
+
+/* Badge pill borders */
+.border-rose-800\/50   { border-color: #fecdd3 !important; }
+.border-blue-800\/50   { border-color: #bfdbfe !important; }
+.border-amber-800\/50  { border-color: #fde68a !important; }
+.border-orange-850\/40 { border-color: #ffedd5 !important; }
+.border-cyan-900       { border-color: #bfdbfe !important; }
+.border-cyan-800\/50   { border-color: #bfdbfe !important; }
+.border-blue-950       { border-color: #bfdbfe !important; }
+
+/* Checklist item: checked state */
+.bg-cyan-950\/20  { background-color: #eff6ff !important; }
+.bg-cyan-950\/10  { background-color: #f0f9ff !important; }
+.border-cyan-800\/50 { border-color: #bfdbfe !important; }
+.hover\:bg-cyan-950\/30:hover { background-color: #dbeafe !important; }
+
+/* Current user leaderboard row */
+.bg-blue-950\/15 { background-color: #eff6ff !important; }
+.border-blue-950 { border-color: #93c5fd !important; }
+
+/* ─────────────────────────────────────────────────────────
+   RADIAL GRADIENT OVERRIDE  (strip dark mesh gradients)
+───────────────────────────────────────────────────────── */
+.from-cyan-900\/20,
+.from-blue-900\/30,
+.via-slate-950,
+.to-slate-950 {
+  --tw-gradient-from: transparent !important;
+  --tw-gradient-stops: transparent !important;
+  --tw-gradient-to: transparent !important;
+  background-image: none !important;
+}
+
+/* ─────────────────────────────────────────────────────────
+   HEADER  — white card with subtle shadow
+───────────────────────────────────────────────────────── */
+header.relative.z-30 {
+  background-color: #ffffff !important;
+  border-bottom-color: #e2e8f0 !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* ─────────────────────────────────────────────────────────
+   MAIN CARDS  — clean white with a soft border
+───────────────────────────────────────────────────────── */
+.backdrop-blur-md,
+.backdrop-blur-xl {
+  background-color: #ffffff !important;
+  backdrop-filter: none !important;
+}
+
+/* ─────────────────────────────────────────────────────────
+   PROGRESS BAR TRACK  (was dark slate)
+───────────────────────────────────────────────────────── */
+.h-2\.5.w-full.bg-slate-950 {
+  background-color: #e2e8f0 !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* ─────────────────────────────────────────────────────────
+   CHART BARS  (bar graph background columns)
+───────────────────────────────────────────────────────── */
+.bg-slate-50 { background-color: #f1f5f9 !important; }
+
+/* Chart grid lines — keep them visible on light bg */
+.border-slate-200 { border-color: #e2e8f0 !important; }
+
+/* ─────────────────────────────────────────────────────────
+   BADGE ICON BACKGROUNDS  (shield icon container)
+───────────────────────────────────────────────────────── */
+/* The inner .bg-slate-950 inside badge row → light gray */
+.p-2\.5.rounded-lg.bg-slate-950 {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* ─────────────────────────────────────────────────────────
+   NOTIFICATION DROPDOWN
+───────────────────────────────────────────────────────── */
+.fixed.top-16,
+.sm\:absolute.sm\:top-full {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* ─────────────────────────────────────────────────────────
+   FORM INPUTS  (login page)
+───────────────────────────────────────────────────────── */
+.bg-slate-950\/80 {
+  background-color: #f8fafc !important;
+}
+
+input[class*="bg-slate-950"],
+select[class*="bg-slate-950"] {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+input::placeholder,
+select::placeholder,
+textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* ─────────────────────────────────────────────────────────
+   PERSONAL TASK & "NEXT LEVEL" CARD INNER
+───────────────────────────────────────────────────────── */
+.bg-slate-950\/60 { background-color: #f8fafc !important; }
+
+/* ─────────────────────────────────────────────────────────
+   INSTALL MODAL OVERLAY
+───────────────────────────────────────────────────────── */
+.bg-slate-950\/80 { background-color: rgba(15, 23, 42, 0.6) !important; }
+.bg-slate-900.border.border-slate-800.rounded-2xl {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* ─────────────────────────────────────────────────────────
+   RING OVERRIDES  (ring-white/5 looks muddy in light mode)
+───────────────────────────────────────────────────────── */
+.ring-1.ring-white\/5 { --tw-ring-color: transparent !important; }
