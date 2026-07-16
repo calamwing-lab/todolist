@@ -23,6 +23,7 @@ export interface User {
   skills?: string[]
   personalTasks?: PersonalTask[]
   batch?: string
+  last_notification_read_at?: string | null
 }
 
 export interface VideoRecord {
@@ -90,7 +91,8 @@ export async function login(phone: string, pass: string): Promise<{ success: boo
         created_at: data.user.created_at,
         batch: data.user.user_metadata?.batch,
         skills: [],
-        personalTasks: []
+        personalTasks: [],
+        last_notification_read_at: null
       }
     } else {
       user = {
@@ -101,7 +103,8 @@ export async function login(phone: string, pass: string): Promise<{ success: boo
         created_at: profile.created_at,
         batch: profile.batch || undefined,
         skills: profile.skills || [],
-        personalTasks: profile.personal_tasks || []
+        personalTasks: profile.personal_tasks || [],
+        last_notification_read_at: profile.last_notification_read_at || null
       }
     }
 
@@ -176,7 +179,8 @@ export async function getStudentById(id: string): Promise<User | null> {
       created_at: data.created_at,
       batch: data.batch || undefined,
       skills: data.skills || [],
-      personalTasks: data.personal_tasks || []
+      personalTasks: data.personal_tasks || [],
+      last_notification_read_at: data.last_notification_read_at || null
     }
   } catch (e: any) {
     console.error('getStudentById error:', e)
@@ -218,21 +222,35 @@ async function generateUniquePhone(): Promise<string> {
 
 export async function addStudent(name: string, phone: string, pass: string, batch?: string): Promise<{ success: boolean; student?: User; error?: string }> {
   const trimmedPhone = phone.trim()
+  let formattedPhone = ''
 
   // If phone is blank (admin left it empty), auto-generate a unique 10-digit number
-  let rawPhone: string
   if (!trimmedPhone) {
-    rawPhone = await generateUniquePhone()
+    const rawGenerated = await generateUniquePhone()
+    formattedPhone = '+91' + rawGenerated
   } else {
-    // Validate: must be exactly 10 digits (no country code)
-    const digitsOnly = trimmedPhone.replace(/\D/g, '')
-    if (digitsOnly.length !== 10) {
-      return { success: false, error: 'Phone number must be exactly 10 digits.' }
+    // Standardize input by removing non-digits, except possible leading plus sign
+    const cleanedPhone = trimmedPhone.replace(/[\s\-()]/g, '')
+    if (cleanedPhone.startsWith('+91')) {
+      const numericPart = cleanedPhone.slice(3)
+      if (!/^\d{10}$/.test(numericPart)) {
+        return { success: false, error: 'Phone number must be exactly 10 digits.' }
+      }
+      formattedPhone = cleanedPhone
+    } else if (cleanedPhone.startsWith('91') && cleanedPhone.length === 12) {
+      const numericPart = cleanedPhone.slice(2)
+      if (!/^\d{10}$/.test(numericPart)) {
+        return { success: false, error: 'Phone number must be exactly 10 digits.' }
+      }
+      formattedPhone = '+' + cleanedPhone
+    } else {
+      const cleanDigits = cleanedPhone.replace(/\D/g, '')
+      if (!/^\d{10}$/.test(cleanDigits)) {
+        return { success: false, error: 'Phone number must be exactly 10 digits.' }
+      }
+      formattedPhone = '+91' + cleanDigits
     }
-    rawPhone = digitsOnly
   }
-
-  const formattedPhone = '+91' + rawPhone
 
   try {
     const authRes = await createStudentAuth(name.trim(), formattedPhone, pass, batch)
@@ -290,7 +308,7 @@ export async function updateUserProfile(userId: string, name: string, phone: str
       .eq('id', userId)
 
     if (error) return { success: false, error: error.message }
-
+ 
     const currentSession = getCurrentUser()
     if (currentSession && currentSession.id === userId) {
       const updatedUser: User = {
@@ -305,6 +323,32 @@ export async function updateUserProfile(userId: string, name: string, phone: str
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message || 'Failed to update profile.' }
+  }
+}
+
+export async function markNotificationsAsRead(userId: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient()
+  try {
+    const timestamp = new Date().toISOString()
+    const { error } = await supabase
+      .from('users')
+      .update({ last_notification_read_at: timestamp })
+      .eq('id', userId)
+
+    if (error) return { success: false, error: error.message }
+
+    const currentSession = getCurrentUser()
+    if (currentSession && currentSession.id === userId) {
+      const updatedUser: User = {
+        ...currentSession,
+        last_notification_read_at: timestamp
+      }
+      localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(updatedUser))
+      document.cookie = `user_session=${encodeURIComponent(JSON.stringify(updatedUser))}; path=/; max-age=604800; SameSite=Lax`
+    }
+    return { success: true }
+  } catch (e: any) {
+    return { success: false, error: e.message || 'Failed to update notification read status.' }
   }
 }
 

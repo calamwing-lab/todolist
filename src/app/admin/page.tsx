@@ -12,7 +12,7 @@ import {
 } from '@/utils/db'
 import { changeAdminPassword, getStudentsAdminData } from '@/app/admin/actions'
 import { 
-  Search, ExternalLink, Trash2, CheckCircle2, AlertCircle, User, Edit, Trophy, Download, Lock, Eye, EyeOff, X, Smartphone, Check, Loader2, Shield, LogOut, Users, Video, Plus, Key
+  Search, ExternalLink, Trash2, CheckCircle2, AlertCircle, User, Edit, Trophy, Download, Lock, Eye, EyeOff, X, Smartphone, Check, Loader2, Shield, LogOut, Users, Video, Plus, Key, BarChart2, TrendingUp, TrendingDown, Clock, Filter
 } from 'lucide-react'
 import { getBadgeForPercentage } from '@/utils/badge'
 
@@ -45,6 +45,7 @@ export default function AdminPage() {
 
   // Students State
   const [students, setStudents] = useState<Student[]>([])
+  const [studentsLoading, setStudentsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [resettingStudent, setResettingStudent] = useState<Student | null>(null)
   const [newPassword, setNewPassword] = useState('')
@@ -105,7 +106,8 @@ export default function AdminPage() {
   const [videoSuccess, setVideoSuccess] = useState<string | null>(null)
 
   // Tab state (for mobile responsiveness or section focus)
-  const [activeSection, setActiveSection] = useState<'students' | 'videos' | 'tasks'>('students')
+  const [activeSection, setActiveSection] = useState<'students' | 'videos' | 'tasks' | 'reports'>('students')
+  const [showInactiveOnly, setShowInactiveOnly] = useState(false)
 
   // Main Tasks State
   const [mainTasks, setMainTasks] = useState<MainTask[]>([])
@@ -132,9 +134,9 @@ export default function AdminPage() {
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
 
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches
-    if (!isStandalone) {
-      setShowInstallBtn(true)
+    // Hide if already in standalone mode
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setShowInstallBtn(false)
     }
 
     return () => {
@@ -143,10 +145,7 @@ export default function AdminPage() {
   }, [])
 
   const handleInstallClick = async () => {
-    if (!deferredPrompt) {
-      setIsInstallModalOpen(true)
-      return
-    }
+    if (!deferredPrompt) return
     deferredPrompt.prompt()
     const { outcome } = await deferredPrompt.userChoice
     console.log(`User response to the install prompt: ${outcome}`)
@@ -163,54 +162,77 @@ export default function AdminPage() {
   } | null>(null)
 
   const loadStudentsWithStats = async () => {
-    const dateStrings: string[] = []
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date()
-      d.setDate(d.getDate() - i)
-      dateStrings.push(d.toLocaleDateString('en-CA')) // YYYY-MM-DD format
-    }
-
-    const res = await getStudentsAdminData(dateStrings)
-    const studentList = res.success && res.students ? res.students : []
-    const mainTasksList = await getMainTasks()
-    const totalTasksCount = mainTasksList.length || 1
-
-    const studentsWithStats = studentList.map((s: any) => {
-      // Build logs in memory from the pre-fetched dailyTasks
-      const historyMap = new Map<string, any>()
-      if (s.dailyTasks) {
-        s.dailyTasks.forEach((item: any) => {
-          historyMap.set(item.date, item)
-        })
+    try {
+      const dateStrings: string[] = []
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date()
+        d.setDate(d.getDate() - i)
+        dateStrings.push(d.toLocaleDateString('en-CA')) // YYYY-MM-DD format
       }
 
-      const logs = dateStrings.map(date => {
-        return historyMap.get(date) || {
-          id: '',
-          user_id: s.id,
-          date,
-          task_data: {}
+      const res = await getStudentsAdminData(dateStrings)
+      if (!res.success) {
+        console.error('Supabase query failed in getStudentsAdminData:', res.error)
+        throw new Error(res.error || 'Failed to fetch student list from Supabase.')
+      }
+
+      const studentList = res.students || []
+      const mainTasksList = await getMainTasks()
+      const totalTasksCount = mainTasksList.length || 1
+
+      const studentsWithStats = studentList.map((s: any) => {
+        // Build logs in memory from the pre-fetched dailyTasks
+        const historyMap = new Map<string, any>()
+        if (s.dailyTasks) {
+          s.dailyTasks.forEach((item: any) => {
+            historyMap.set(item.date, item)
+          })
+        }
+
+        const logs = dateStrings.map(date => {
+          return historyMap.get(date) || {
+            id: '',
+            user_id: s.id,
+            date,
+            task_data: {}
+          }
+        })
+
+        const totalPercentage = logs.reduce((sum, log) => {
+          const completed = mainTasksList.filter(item => log.task_data[item.id]).length
+          const pct = Math.round((completed / totalTasksCount) * 100)
+          return sum + pct
+        }, 0)
+        const avg = Math.round(totalPercentage / 7)
+
+        // Compute lastResponseDaysAgo from last_task_date
+        let lastResponseDaysAgo: number | undefined = undefined
+        if (s.last_task_date) {
+          const today = new Date()
+          today.setHours(0, 0, 0, 0)
+          const lastDate = new Date(s.last_task_date)
+          lastDate.setHours(0, 0, 0, 0)
+          const diffMs = today.getTime() - lastDate.getTime()
+          lastResponseDaysAgo = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+        }
+
+        return {
+          ...s,
+          avgPercentage: avg,
+          lastResponseDaysAgo
         }
       })
 
-      const totalPercentage = logs.reduce((sum, log) => {
-        const completed = mainTasksList.filter(item => log.task_data[item.id]).length
-        const pct = Math.round((completed / totalTasksCount) * 100)
-        return sum + pct
-      }, 0)
-      const avg = Math.round(totalPercentage / 7)
-
-      return {
-        ...s,
-        avgPercentage: avg
-      }
-    })
-
-    return studentsWithStats
+      return studentsWithStats
+    } catch (error: any) {
+      console.error('Exception caught in loadStudentsWithStats:', error)
+      return []
+    }
   }
 
   const fetchData = async () => {
     try {
+      setStudentsLoading(true)
       const user = getCurrentUser()
       if (!user || user.role !== 'admin') {
         router.replace('/login')
@@ -244,10 +266,10 @@ export default function AdminPage() {
       const boardData = await getLeaderboard()
       setLeaderboard(boardData)
 
-
     } catch (err: any) {
       console.error('Error fetching dashboard data:', err.message)
     } finally {
+      setStudentsLoading(false)
       setLoading(false)
     }
   }
@@ -261,12 +283,13 @@ export default function AdminPage() {
     router.replace('/login')
   }
 
-  // Filter students based on search
   const filteredStudents = students.filter(student => {
-    const name = student.name?.toLowerCase() || ''
-    const phone = student.phone.toLowerCase()
-    const query = searchQuery.toLowerCase()
-    return name.includes(query) || phone.includes(query)
+    const matchesSearch = searchQuery.trim()
+      ? (student.name?.toLowerCase() || '').includes(searchQuery.trim().toLowerCase()) ||
+        student.phone?.toLowerCase().includes(searchQuery.trim().toLowerCase())
+      : true
+    const matchesInactive = showInactiveOnly ? student.inactiveToday : true
+    return matchesSearch && matchesInactive
   })
 
   // Handle Password Reset
@@ -301,8 +324,11 @@ export default function AdminPage() {
   const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    const trimmedName = newStudentName.trim()
+    const trimmedPhone = newStudentPhone.trim()
+
     // Only name and password are strictly required
-    if (!newStudentName.trim()) {
+    if (!trimmedName) {
       setAddStudentError('Student name is required.')
       return
     }
@@ -315,20 +341,22 @@ export default function AdminPage() {
       return
     }
 
-    // If admin provided a phone number, validate it's exactly 10 digits
-    if (newStudentPhone.trim()) {
-      const digitsOnly = newStudentPhone.trim().replace(/\D/g, '')
-      if (digitsOnly.length !== 10) {
+    let finalPhone = ''
+    // If admin provided a phone number, validate it's exactly 10 digits and prepend +91
+    if (trimmedPhone) {
+      const cleanDigits = trimmedPhone.replace(/[\s\-()]/g, '')
+      if (!/^\d{10}$/.test(cleanDigits)) {
         setAddStudentError('Phone number must be exactly 10 digits (no country code). Leave blank to auto-generate.')
         return
       }
+      finalPhone = '+91' + cleanDigits
     }
 
     setAddStudentLoading(true)
     setAddStudentError(null)
     setAddStudentSuccess(null)
 
-    const result = await addStudentLocal(newStudentName, newStudentPhone, newStudentPassword, newStudentBatch)
+    const result = await addStudentLocal(trimmedName, finalPhone, newStudentPassword, newStudentBatch)
 
     if (result.success) {
       const displayPhone = result.student?.phone || 'auto-generated'
@@ -338,8 +366,10 @@ export default function AdminPage() {
       setNewStudentPassword('')
       setNewStudentBatch('HS1')
       // Refresh list
+      setStudentsLoading(true)
       const studentList = await loadStudentsWithStats()
       setStudents(studentList)
+      setStudentsLoading(false)
 
       // Refresh leaderboard
       setLeaderboard(await getLeaderboard())
@@ -414,22 +444,45 @@ export default function AdminPage() {
   const handleEditStudentSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingStudent) return
-    if (!editStudentName.trim() || !editStudentPhone.trim()) {
+
+    const trimmedName = editStudentName.trim()
+    const trimmedPhone = editStudentPhone.trim()
+
+    if (!trimmedName || !trimmedPhone) {
       setEditStudentError('All fields are required.')
       return
+    }
+
+    // Standardize and validate phone number
+    const cleanDigits = trimmedPhone.replace(/[\s\-()]/g, '')
+    let finalPhone = cleanDigits
+    if (cleanDigits.startsWith('+91')) {
+      const numericPart = cleanDigits.slice(3)
+      if (!/^\d{10}$/.test(numericPart)) {
+        setEditStudentError('Phone number must be exactly 10 digits.')
+        return
+      }
+    } else {
+      if (!/^\d{10}$/.test(cleanDigits)) {
+        setEditStudentError('Phone number must be exactly 10 digits.')
+        return
+      }
+      finalPhone = '+91' + cleanDigits
     }
 
     setEditStudentLoading(true)
     setEditStudentError(null)
     setEditStudentSuccess(null)
 
-    const result = await updateUserProfileLocal(editingStudent.id, editStudentName, editStudentPhone, editStudentBatch)
+    const result = await updateUserProfileLocal(editingStudent.id, trimmedName, finalPhone, editStudentBatch)
 
     if (result.success) {
       setEditStudentSuccess('Student profile updated successfully!')
       // Refresh list
+      setStudentsLoading(true)
       const studentList = await loadStudentsWithStats()
       setStudents(studentList)
+      setStudentsLoading(false)
 
       // Refresh leaderboard
       setLeaderboard(await getLeaderboard())
@@ -553,7 +606,9 @@ export default function AdminPage() {
       setNewTaskLabel('')
       setMainTasks([...mainTasks, result.task])
       // Refresh students stats to reflect new task count
+      setStudentsLoading(true)
       setStudents(await loadStudentsWithStats())
+      setStudentsLoading(false)
       // Refresh leaderboard
       setLeaderboard(await getLeaderboard())
       setTimeout(() => setTaskSuccess(null), 3000)
@@ -584,14 +639,16 @@ export default function AdminPage() {
 
     const result = await updateMainTaskLocal(editingTask.id, editingTaskLabel.trim())
     if (result.success) {
-      setTaskSuccess('Task updated successfully!')
-      setMainTasks(mainTasks.map(t => t.id === editingTask.id ? { ...t, label: editingTaskLabel.trim() } : t))
-      setEditingTask(null)
-      // Refresh students stats
-      setStudents(await loadStudentsWithStats())
-      // Refresh leaderboard
-      setLeaderboard(await getLeaderboard())
-      setTimeout(() => setTaskSuccess(null), 3000)
+       setTaskSuccess('Task updated successfully!')
+       setMainTasks(mainTasks.map(t => t.id === editingTask.id ? { ...t, label: editingTaskLabel.trim() } : t))
+       setEditingTask(null)
+       // Refresh students stats
+       setStudentsLoading(true)
+       setStudents(await loadStudentsWithStats())
+       setStudentsLoading(false)
+       // Refresh leaderboard
+       setLeaderboard(await getLeaderboard())
+       setTimeout(() => setTaskSuccess(null), 3000)
     } else {
       setTaskError(result.error || 'Failed to update task.')
     }
@@ -614,6 +671,7 @@ export default function AdminPage() {
     setDeletingItem(null)
 
     if (type === 'student') {
+      setStudentsLoading(true)
       const result = await deleteStudentLocal(id)
       if (result.success) {
         setStudents(await loadStudentsWithStats())
@@ -621,13 +679,16 @@ export default function AdminPage() {
       } else {
         alert(result.error || 'Failed to delete student.')
       }
+      setStudentsLoading(false)
     } else if (type === 'task') {
       const result = await deleteMainTaskLocal(id)
       if (result.success) {
         setTaskSuccess('Task deleted successfully!')
         setMainTasks(mainTasks.filter(t => t.id !== id))
+        setStudentsLoading(true)
         setStudents(await loadStudentsWithStats())
         setLeaderboard(await getLeaderboard())
+        setStudentsLoading(false)
         setTimeout(() => setTaskSuccess(null), 3000)
       } else {
         setTaskError(result.error || 'Failed to delete task.')
@@ -761,6 +822,18 @@ export default function AdminPage() {
             <span className="hidden sm:inline">Main Tasks Management</span>
             <span className="sm:hidden">Main Tasks</span>
           </button>
+          <button
+            onClick={() => setActiveSection('reports')}
+            className={`flex items-center gap-2 pb-4 pt-2 border-b-2 text-sm font-bold transition-all px-2 cursor-pointer shrink-0 ${
+              activeSection === 'reports' 
+                ? 'border-blue-600 text-blue-700' 
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <BarChart2 className="h-4 w-4 shrink-0" />
+            <span className="hidden sm:inline">Reports & Analytics</span>
+            <span className="sm:hidden">Reports</span>
+          </button>
         </div>
 
         {/* Section 1: Students Management */}
@@ -789,6 +862,17 @@ export default function AdminPage() {
                   />
                 </div>
                 <button
+                  onClick={() => setShowInactiveOnly(!showInactiveOnly)}
+                  className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold active:scale-[0.98] transition cursor-pointer border ${
+                    showInactiveOnly
+                      ? 'bg-orange-500 hover:bg-orange-400 text-white border-orange-400'
+                      : 'bg-white hover:bg-orange-50 text-orange-600 border-orange-200'
+                  }`}
+                >
+                  <Filter className="h-4 w-4" />
+                  {showInactiveOnly ? 'All Students' : 'Inactive Only'}
+                </button>
+                <button
                   onClick={() => setIsAddStudentOpen(true)}
                   className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-2 text-sm font-semibold active:scale-[0.98] transition cursor-pointer text-white"
                 >
@@ -816,7 +900,16 @@ export default function AdminPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-blue-50 text-slate-600">
-                      {filteredStudents.length > 0 ? (
+                      {studentsLoading ? (
+                        <tr>
+                          <td colSpan={4} className="px-6 py-10 text-center text-slate-500 font-medium">
+                            <div className="flex items-center justify-center gap-2">
+                              <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                              <span>Loading students...</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : filteredStudents.length > 0 ? (
                         filteredStudents.map((student) => (
                           <tr key={student.id} className="hover:bg-blue-50/50 transition-colors">
                             <td className="px-3 xl:px-4 py-4.5 font-semibold text-slate-800 align-top">
@@ -842,12 +935,21 @@ export default function AdminPage() {
                                       </span>
                                     )
                                   })()}
-                                  {student.inactiveToday && (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-600 border border-red-100 animate-pulse shrink-0 whitespace-nowrap" title="Inactive Today">
-                                      <AlertCircle className="h-3 w-3 shrink-0 text-red-500" />
-                                      Inactive Today
-                                    </span>
-                                  )}
+                                  {student.inactiveToday && (() => {
+                                    const days = student.lastResponseDaysAgo
+                                    const label = days !== undefined
+                                      ? `Inactive (${days} Day${days !== 1 ? 's' : ''})`
+                                      : 'Inactive Today'
+                                    const colorCls = days !== undefined && days >= 3
+                                      ? 'bg-red-50 text-red-600 border-red-200'
+                                      : 'bg-orange-50 text-orange-600 border-orange-200'
+                                    return (
+                                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border animate-pulse shrink-0 whitespace-nowrap ${colorCls}`}>
+                                        <AlertCircle className="h-3 w-3 shrink-0" />
+                                        {label}
+                                      </span>
+                                    )
+                                  })()}
                                 </div>
                               </div>
                             </td>
@@ -897,14 +999,23 @@ export default function AdminPage() {
 
                 {/* Mobile View: List of Cards */}
                 <div className="block md:hidden space-y-4">
-                  {filteredStudents.length > 0 ? (
+                  {studentsLoading ? (
+                    <div className="bg-white border border-slate-200 p-8 rounded-2xl text-center text-slate-500 font-medium flex items-center justify-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                      <span>Loading students...</span>
+                    </div>
+                  ) : filteredStudents.length > 0 ? (
                     filteredStudents.map((student) => (
-                      <div key={student.id} className="bg-white border border-blue-100 p-5 sm:p-6 rounded-2xl space-y-4 shadow-sm">
+                      <div 
+                        key={student.id} 
+                        onClick={() => router.push(`/admin/student/${student.id}`)}
+                        className="bg-white border border-blue-100 p-5 sm:p-6 rounded-2xl space-y-4 shadow-sm hover:bg-slate-50/50 cursor-pointer active:bg-slate-100/50 transition duration-150 relative z-10 group"
+                      >
                         <div className="flex flex-col gap-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <Link href={`/admin/student/${student.id}`} className="text-blue-600 hover:text-blue-700 hover:underline transition font-bold text-base">
+                            <span className="text-blue-600 hover:text-blue-700 font-bold text-base transition group-hover:underline">
                               {student.name || 'John Doe'}
-                            </Link>
+                            </span>
                             {student.batch && (
                               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 border border-blue-100 text-blue-600">
                                 {student.batch}
@@ -922,12 +1033,21 @@ export default function AdminPage() {
                                 </span>
                               )
                             })()}
-                            {student.inactiveToday && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-600 border border-red-100 animate-pulse shrink-0 whitespace-nowrap" title="Inactive Today">
-                                <AlertCircle className="h-3 w-3 shrink-0 text-red-500" />
-                                Inactive Today
-                              </span>
-                            )}
+                            {student.inactiveToday && (() => {
+                              const days = student.lastResponseDaysAgo
+                              const label = days !== undefined
+                                ? `Inactive (${days} Day${days !== 1 ? 's' : ''})`
+                                : 'Inactive Today'
+                              const colorCls = days !== undefined && days >= 3
+                                ? 'bg-red-50 text-red-600 border-red-200'
+                                : 'bg-orange-50 text-orange-600 border-orange-200'
+                              return (
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border animate-pulse shrink-0 whitespace-nowrap ${colorCls}`}>
+                                  <AlertCircle className="h-3 w-3 shrink-0" />
+                                  {label}
+                                </span>
+                              )
+                            })()}
                           </div>
                         </div>
 
@@ -942,23 +1062,32 @@ export default function AdminPage() {
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100 justify-end">
+                        <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100 justify-end relative z-20">
                           <button
-                            onClick={() => handleOpenEditStudentModal(student)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenEditStudentModal(student);
+                            }}
                             className="inline-flex items-center gap-1 rounded-lg bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 text-cyan-700 text-xs px-3 py-1.5 font-semibold active:scale-[0.98] transition cursor-pointer"
                           >
                             <Edit className="h-3.5 w-3.5" />
                             Edit
                           </button>
                           <button
-                            onClick={() => setResettingStudent(student)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setResettingStudent(student);
+                            }}
                             className="inline-flex items-center gap-1 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs px-3 py-1.5 font-semibold active:scale-[0.98] transition cursor-pointer"
                           >
                             <Key className="h-3.5 w-3.5" />
                             Reset
                           </button>
                           <button
-                            onClick={() => handleDeleteStudent(student.id, student.name || student.phone)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteStudent(student.id, student.name || student.phone);
+                            }}
                             className="inline-flex items-center gap-1 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 text-xs px-3 py-1.5 font-semibold active:scale-[0.98] transition cursor-pointer"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -1327,6 +1456,165 @@ export default function AdminPage() {
 
           </div>
         )}
+
+        {/* Section 4: Reports & Analytics */}
+        {activeSection === 'reports' && (() => {
+          const totalStudents = students.length
+          const activeStudents = students.filter(s => !s.inactiveToday).length
+          const inactiveStudents = totalStudents - activeStudents
+          const activePercent = totalStudents > 0 ? Math.round((activeStudents / totalStudents) * 100) : 0
+
+          // Batch breakdown
+          const batches = Array.from(new Set(students.map(s => s.batch).filter(Boolean))) as string[]
+          const batchStats = batches.sort().map(batch => {
+            const batchStudents = students.filter(s => s.batch === batch)
+            const batchActive = batchStudents.filter(s => !s.inactiveToday).length
+            const pct = batchStudents.length > 0 ? Math.round((batchActive / batchStudents.length) * 100) : 0
+            return { batch, total: batchStudents.length, active: batchActive, pct }
+          })
+
+          // Students inactive > 2 days
+          const criticalInactive = students.filter(s => s.inactiveToday && s.lastResponseDaysAgo !== undefined && s.lastResponseDaysAgo > 2)
+            .sort((a, b) => (b.lastResponseDaysAgo || 0) - (a.lastResponseDaysAgo || 0))
+
+          return (
+            <div className="space-y-6 p-6 bg-white rounded-2xl border border-blue-100 shadow-md">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <BarChart2 className="h-5 w-5 text-blue-500" />
+                  Reports &amp; Analytics
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">Overview of student activity and batch performance based on today&apos;s data.</p>
+              </div>
+
+              {/* Top Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {[
+                  { label: 'Total Students', value: totalStudents, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' },
+                  { label: 'Active Today', value: activeStudents, icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' },
+                  { label: 'Inactive Today', value: inactiveStudents, icon: TrendingDown, color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-100' },
+                  { label: 'Critical (3d+)', value: criticalInactive.length, icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-100' },
+                ].map(({ label, value, icon: Icon, color, bg, border }) => (
+                  <div key={label} className={`rounded-2xl border p-4 ${bg} ${border}`}>
+                    <div className={`flex items-center gap-2 mb-1.5 ${color}`}>
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span className="text-xs font-bold uppercase tracking-wider">{label}</span>
+                    </div>
+                    <p className={`text-3xl font-black ${color}`}>{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Overall Activity Card */}
+                <div className="bg-slate-50 rounded-2xl border border-slate-200 p-6 space-y-4">
+                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Overall Activity Today</h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-sm font-semibold">
+                      <span className="text-emerald-600">Active</span>
+                      <span className="text-emerald-700 font-black">{activePercent}%</span>
+                    </div>
+                    <div className="w-full h-4 bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full transition-all duration-500"
+                        style={{ width: `${activePercent}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-500 font-medium">
+                      <span>{activeStudents} active</span>
+                      <span>{inactiveStudents} inactive</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 pt-2 border-t border-slate-200">
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 inline-block" />
+                      <span className="text-xs text-slate-600">Active — submitted at least 1 task today</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Batch Performance */}
+                <div className="bg-slate-50 rounded-2xl border border-slate-200 p-6 space-y-4">
+                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Batch Performance Today</h3>
+                  {batchStats.length > 0 ? (
+                    <div className="space-y-4">
+                      {batchStats.map(({ batch, total, active, pct }) => (
+                        <div key={batch} className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">{batch}</span>
+                              <span className="text-xs text-slate-500">{active}/{total} active</span>
+                            </div>
+                            <span className={`text-xs font-black ${pct >= 70 ? 'text-emerald-600' : pct >= 40 ? 'text-amber-600' : 'text-red-600'}`}>
+                              {pct}%
+                            </span>
+                          </div>
+                          <div className="w-full h-3 bg-slate-200 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                pct >= 70 ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
+                                : pct >= 40 ? 'bg-gradient-to-r from-amber-400 to-amber-500'
+                                : 'bg-gradient-to-r from-red-400 to-red-500'
+                              }`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-400 italic text-center py-6">No batches assigned yet.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Inactive Alert List */}
+              <div className="bg-slate-50 rounded-2xl border border-red-100 p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-red-500" />
+                    Inactive Alert List <span className="ml-1 text-red-500">(3+ Days)</span>
+                  </h3>
+                  <span className="text-xs bg-red-100 border border-red-200 text-red-600 px-2.5 py-0.5 rounded-full font-bold">
+                    {criticalInactive.length} student{criticalInactive.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                {criticalInactive.length > 0 ? (
+                  <div className="divide-y divide-slate-100">
+                    {criticalInactive.map(s => (
+                      <div key={s.id} className="flex items-center justify-between py-3 gap-4">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="h-8 w-8 rounded-full bg-red-100 border border-red-200 flex items-center justify-center shrink-0">
+                            <User className="h-4 w-4 text-red-500" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-slate-800 truncate">{s.name || 'Unnamed'}</p>
+                            <p className="text-xs text-slate-500 font-mono">{s.phone}</p>
+                          </div>
+                          {s.batch && (
+                            <span className="hidden sm:inline text-[10px] font-bold bg-blue-50 border border-blue-100 text-blue-600 px-2 py-0.5 rounded-full shrink-0">
+                              {s.batch}
+                            </span>
+                          )}
+                        </div>
+                        <span className="inline-flex items-center gap-1 bg-red-50 border border-red-200 text-red-600 text-xs font-bold px-3 py-1 rounded-full shrink-0">
+                          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                          {s.lastResponseDaysAgo} day{s.lastResponseDaysAgo !== 1 ? 's' : ''} inactive
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-slate-500">
+                    <CheckCircle2 className="h-10 w-10 text-emerald-400 mx-auto mb-2" />
+                    <p className="text-sm font-medium">No students have been inactive for 3+ days. Great progress!</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })()}
       </main>
 
       {/* Password Reset Modal */}

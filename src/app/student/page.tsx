@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getCurrentUser, logout, getLatestVideo, getDailyTasks, saveDailyTasks, getStudentHistoryLast7Days, updateStudentPersonalTasks, getLeaderboard, LeaderboardEntry, PersonalTask, getMainTasks, MainTask } from '@/utils/db'
+import { getCurrentUser, logout, getLatestVideo, getDailyTasks, saveDailyTasks, getStudentHistoryLast7Days, updateStudentPersonalTasks, getLeaderboard, LeaderboardEntry, PersonalTask, getMainTasks, MainTask, getStudentById, markNotificationsAsRead } from '@/utils/db'
 import { 
   LogOut, GraduationCap, Bell,
   Play, Calendar, BookOpen, AlertCircle, Loader2, Sparkles, Trophy,
@@ -31,7 +31,7 @@ export default function StudentPage() {
 
   // Video state
   const [latestVideo, setLatestVideo] = useState<VideoRecord | null>(null)
-  const [hasNewVideoToday, setHasNewVideoToday] = useState(false)
+  const [hasUnreadNotification, setHasUnreadNotification] = useState(false)
 
   // Checklist state
   const [taskData, setTaskData] = useState<{ [key: string]: boolean }>({})
@@ -69,9 +69,9 @@ export default function StudentPage() {
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
 
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches
-    if (!isStandalone) {
-      setShowInstallBtn(true)
+    // Hide if already in standalone mode
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setShowInstallBtn(false)
     }
 
     return () => {
@@ -80,10 +80,7 @@ export default function StudentPage() {
   }, [])
 
   const handleInstallClick = async () => {
-    if (!deferredPrompt) {
-      setIsInstallModalOpen(true)
-      return
-    }
+    if (!deferredPrompt) return
     deferredPrompt.prompt()
     const { outcome } = await deferredPrompt.userChoice
     console.log(`User response to the install prompt: ${outcome}`)
@@ -181,18 +178,26 @@ export default function StudentPage() {
         setStudentBatch(user.batch)
         setPersonalTasks(user.personalTasks || [])
 
+        // Fetch fresh user profile from DB to get the latest last_notification_read_at
+        const profile = await getStudentById(user.id)
+        let lastRead = user.last_notification_read_at
+        if (profile) {
+          lastRead = profile.last_notification_read_at
+          localStorage.setItem('dt_session', JSON.stringify(profile))
+        }
+
         // Fetch latest video
         const video = await getLatestVideo()
         if (video) {
           setLatestVideo(video)
           
-          // Check if it was added today
-          const videoDate = new Date(video.created_at).toDateString()
-          const todayDate = new Date().toDateString()
-          if (videoDate === todayDate) {
-            const isDismissed = localStorage.getItem(`dt_dismissed_video_${user.id}_${video.id}`) === 'true'
-            if (!isDismissed) {
-              setHasNewVideoToday(true)
+          if (!lastRead) {
+            setHasUnreadNotification(true)
+          } else {
+            const videoTime = new Date(video.created_at).getTime()
+            const readTime = new Date(lastRead).getTime()
+            if (videoTime > readTime) {
+              setHasUnreadNotification(true)
             }
           }
         }
@@ -244,13 +249,23 @@ export default function StudentPage() {
 
   const handleBellClick = () => {
     setShowNotifications(!showNotifications)
+    if (!showNotifications && hasUnreadNotification && userId) {
+      // Optimistic UI: Immediately hide the blue indicator from the UI
+      setHasUnreadNotification(false)
+      // Background Supabase update
+      markNotificationsAsRead(userId).catch(err => {
+        console.error('Error marking notifications as read:', err)
+      })
+    }
   }
 
   const handleNotificationItemClick = () => {
     setShowNotifications(false)
-    if (hasNewVideoToday && latestVideo && userId) {
-      setHasNewVideoToday(false)
-      localStorage.setItem(`dt_dismissed_video_${userId}_${latestVideo.id}`, 'true')
+    if (hasUnreadNotification && userId) {
+      setHasUnreadNotification(false)
+      markNotificationsAsRead(userId).catch(err => {
+        console.error('Error marking notifications as read:', err)
+      })
     }
     document.getElementById('video-player-section')?.scrollIntoView({ behavior: 'smooth' })
   }
@@ -429,8 +444,8 @@ export default function StudentPage() {
                   onClick={handleBellClick}
                   className="relative p-1.5 rounded-lg hover:bg-slate-100 transition text-slate-500 hover:text-slate-800 cursor-pointer focus:outline-none"
                 >
-                  <Bell className={`h-5 w-5 ${hasNewVideoToday ? 'animate-bounce text-blue-600' : ''}`} />
-                  {hasNewVideoToday && (
+                  <Bell className={`h-5 w-5 ${hasUnreadNotification ? 'animate-bounce text-blue-600' : ''}`} />
+                  {hasUnreadNotification && (
                     <span className="absolute top-1 right-1 block h-2.5 w-2.5 rounded-full bg-blue-600 ring-2 ring-white" />
                   )}
                 </button>
@@ -439,7 +454,7 @@ export default function StudentPage() {
                   <div className="fixed top-16 left-4 right-4 sm:absolute sm:top-full sm:left-auto sm:right-0 sm:mt-2 w-auto sm:w-80 bg-white border border-slate-100 rounded-2xl p-4 shadow-md z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                       <span className="text-xs font-bold text-slate-900">Notifications</span>
-                      {hasNewVideoToday && (
+                      {hasUnreadNotification && (
                         <span className="text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full">
                           New Update
                         </span>
@@ -815,13 +830,24 @@ export default function StudentPage() {
             </div>
 
             {/* Video Section */}
-            <div id="video-player-section" className="bg-white border border-slate-100 p-6 sm:p-8 rounded-2xl shadow-sm space-y-4 hover:scale-[1.005] hover:shadow-md transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-4 duration-500 delay-200">
+            <div 
+              id="video-player-section" 
+              onClick={() => {
+                if (hasUnreadNotification && userId) {
+                  setHasUnreadNotification(false)
+                  markNotificationsAsRead(userId).catch(err => {
+                    console.error('Error marking notifications as read:', err)
+                  })
+                }
+              }}
+              className="bg-white border border-slate-100 p-6 sm:p-8 rounded-2xl shadow-sm space-y-4 hover:scale-[1.005] hover:shadow-md transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-4 duration-500 delay-200"
+            >
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                   <Play className="h-4 w-4 text-blue-600" />
                   Latest Video Class
                 </h3>
-                {hasNewVideoToday && (
+                {hasUnreadNotification && (
                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100">
                     New Today
                   </span>

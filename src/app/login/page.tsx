@@ -129,15 +129,9 @@ export default function LoginPage() {
       setLoading(false)
       return
     }
-    // Reject if it starts with + or has a country code prefix
-    if (rawPhone.startsWith('+') || (rawPhone.startsWith('91') && rawPhone.length > 10)) {
-      setRegPhoneError('Please enter a valid 10-digit mobile number without country code.')
-      setLoading(false)
-      return
-    }
     // Must be exactly 10 digits
-    if (!/^[6-9]\d{9}$/.test(rawPhone)) {
-      setRegPhoneError('Please enter a valid 10-digit mobile number without country code.')
+    if (!/^\d{10}$/.test(rawPhone)) {
+      setRegPhoneError('Phone number must be exactly 10 digits.')
       setLoading(false)
       return
     }
