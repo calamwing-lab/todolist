@@ -1107,12 +1107,12 @@ export default function AdminPage() {
 
               {/* Toppers / Leaderboard Panel */}
               <div className="lg:col-span-1 bg-white border border-blue-100 rounded-2xl p-6 sm:p-8 shadow-md space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                    <Trophy className="h-4.5 w-4.5 text-yellow-500" />
+                <div className="flex flex-row items-center justify-between gap-2">
+                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2 min-w-0">
+                    <Trophy className="h-4.5 w-4.5 text-yellow-500 shrink-0" />
                     Toppers Leaderboard
                   </h3>
-                  <span className="text-[10px] bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full text-slate-500 font-bold uppercase tracking-wider">
+                  <span className="text-[10px] bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full text-slate-500 font-bold uppercase tracking-wider whitespace-nowrap shrink-0">
                     7-Day Avg
                   </span>
                 </div>
