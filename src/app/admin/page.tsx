@@ -122,41 +122,9 @@ export default function AdminPage() {
   // Leaderboard / Toppers state
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
 
-  // PWA Install Prompt State
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
-  const [showInstallBtn, setShowInstallBtn] = useState(false)
-  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false)
-
   // Reports Filter State
   const [reportFilter, setReportFilter] = useState<ReportFilter>({ type: 'all' })
 
-  useEffect(() => {
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault()
-      setDeferredPrompt(e)
-      setShowInstallBtn(true)
-    }
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
-
-    // Hide if already in standalone mode
-    if (window.matchMedia('(display-mode: standalone)').matches) {
-      setShowInstallBtn(false)
-    }
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
-    }
-  }, [])
-
-  const handleInstallClick = async () => {
-    if (!deferredPrompt) return
-    deferredPrompt.prompt()
-    const { outcome } = await deferredPrompt.userChoice
-    console.log(`User response to the install prompt: ${outcome}`)
-    setDeferredPrompt(null)
-    setShowInstallBtn(false)
-  }
 
   // Custom Delete Warning Modal State
   const [deletingItem, setDeletingItem] = useState<{
@@ -2142,33 +2110,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Install App Modal */}
-      {isInstallModalOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200 relative">
-            <div className="flex flex-col items-center text-center space-y-4">
-              <div className="h-12 w-12 bg-blue-50 rounded-full flex items-center justify-center border border-blue-200">
-                <Smartphone className="h-6 w-6 text-blue-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-2">Install App</h3>
-                <p className="text-sm text-slate-600">To install this app on your device:</p>
-                <ol className="text-sm text-slate-600 mt-4 text-left space-y-3 list-decimal list-inside font-medium">
-                  <li>In your browser menu, tap <strong>Share</strong> or <strong>Menu</strong> (three dots).</li>
-                  <li>Select <strong>Add to Home screen</strong> or <strong>Install App</strong>.</li>
-                </ol>
-              </div>
-              <button
-                onClick={() => setIsInstallModalOpen(false)}
-                className="mt-6 w-full py-2.5 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md shadow-blue-500/20 transition-colors"
-              >
-                <Check className="h-4 w-4 text-white" />
-                Got it
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
     </div>
   )
 }
