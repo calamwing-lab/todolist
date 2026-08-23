@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { getBadgeForPercentage, getNextBadge } from '@/utils/badge'
 import { StudentReportView } from '@/components/StudentReportView'
+import { PWAInstallPrompt } from '@/components/PWAInstallPrompt'
 
 
 
@@ -498,16 +499,7 @@ export default function StudentPage() {
                 )}
               </div>
               
-              {showInstallBtn && (
-                <button
-                  onClick={handleInstallClick}
-                  className="flex items-center gap-1.5 sm:gap-2 rounded-xl bg-transparent hover:bg-slate-50 border border-slate-200 hover:border-slate-300 p-2 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold active:scale-[0.98] transition cursor-pointer text-slate-700 shrink-0"
-                  title="Install App"
-                >
-                  <Download className="h-4 w-4 shrink-0 text-slate-700" />
-                  <span className="hidden sm:inline">Install App</span>
-                </button>
-              )}
+              <PWAInstallPrompt />
 
               <span className="hidden md:inline text-xs text-slate-600 font-bold">
                 Phone: {studentPhone}

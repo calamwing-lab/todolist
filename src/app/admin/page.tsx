@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { getBadgeForPercentage } from '@/utils/badge'
 import { ReportsPanel, ReportFilter } from '@/components/admin/ReportsPanel'
+import { PWAInstallPrompt } from '@/components/PWAInstallPrompt'
 interface Student {
   id: string
   phone: string
@@ -768,16 +769,7 @@ export default function AdminPage() {
               </div>
             </div>
             <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-              {showInstallBtn && (
-                <button
-                  onClick={handleInstallClick}
-                  className="flex items-center gap-1.5 sm:gap-2 rounded-xl bg-transparent hover:bg-slate-100 border border-slate-300 hover:border-slate-400 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold active:scale-[0.98] transition cursor-pointer text-black shrink-0"
-                  title="Install App"
-                >
-                  <Download className="h-3.5 sm:h-4 w-3.5 sm:w-4 shrink-0 text-black" />
-                  <span className="hidden sm:inline">Install App</span>
-                </button>
-              )}
+              <PWAInstallPrompt />
 
               <div className="hidden md:flex flex-col items-end text-right gap-0.5">
                 <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 cursor-pointer hover:text-blue-600 transition" onClick={handleOpenEditAdminModal}>
@@ -924,10 +916,10 @@ export default function AdminPage() {
                   <table className="min-w-full divide-y divide-blue-50 text-left text-sm">
                     <thead className="bg-slate-50 font-semibold text-slate-600">
                       <tr>
-                        <th scope="col" className="px-3 xl:px-4 py-4">Student Name</th>
-                        <th scope="col" className="px-3 xl:px-4 py-4">Phone Number</th>
-                        <th scope="col" className="px-3 xl:px-4 py-4">Registration Date</th>
-                        <th scope="col" className="px-3 xl:px-4 py-4 text-right">Actions</th>
+                        <th scope="col" className="px-3 xl:px-4 py-4 whitespace-nowrap">Student Name</th>
+                        <th scope="col" className="px-3 xl:px-4 py-4 whitespace-nowrap">Phone Number</th>
+                        <th scope="col" className="px-3 xl:px-4 py-4 whitespace-nowrap">Registration Date</th>
+                        <th scope="col" className="px-3 xl:px-4 py-4 text-right whitespace-nowrap">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-blue-50 text-slate-600">
@@ -984,13 +976,13 @@ export default function AdminPage() {
                                 </div>
                               </div>
                             </td>
-                            <td className="px-3 xl:px-4 py-4.5 font-mono text-slate-600 align-top">
+                            <td className="px-3 xl:px-4 py-4.5 font-mono text-slate-600 align-top whitespace-nowrap">
                               {student.phone}
                             </td>
-                            <td className="px-3 xl:px-4 py-4.5 text-xs text-slate-500 align-top">
+                            <td className="px-3 xl:px-4 py-4.5 text-xs text-slate-500 align-top whitespace-nowrap">
                               {new Date(student.created_at).toLocaleString()}
                             </td>
-                            <td className="px-3 xl:px-4 py-4.5 text-right align-top">
+                            <td className="px-3 xl:px-4 py-4.5 text-right align-top whitespace-nowrap">
                               <div className="flex justify-end gap-1.5">
                                 <button
                                   onClick={() => handleOpenEditStudentModal(student)}
