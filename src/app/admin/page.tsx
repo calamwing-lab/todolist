@@ -7,15 +7,15 @@ import {
   getCurrentUser, logout, getStudents, getVideos, 
   addVideo, deleteVideo, resetStudentPasswordLocal, addStudentLocal,
   getStudentHistoryLast7Days, updateUserProfileLocal, deleteStudentLocal,
-  getMainTasks, MainTask, addMainTaskLocal, updateMainTaskLocal, deleteMainTaskLocal,
+  getMainTasks, MainTask, addMainTaskLocal, updateMainTaskLocal, deleteMainTaskLocal, reorderMainTasks,
   getLeaderboard, LeaderboardEntry
 } from '@/utils/db'
 import { changeAdminPassword, getStudentsAdminData } from '@/app/admin/actions'
 import { 
-  Search, ExternalLink, Trash2, CheckCircle2, AlertCircle, User, Edit, Trophy, Download, Lock, Eye, EyeOff, X, Smartphone, Check, Loader2, Shield, LogOut, Users, Video, Plus, Key, BarChart2, TrendingUp, TrendingDown, Clock, Filter
+  Search, ExternalLink, Trash2, CheckCircle2, AlertCircle, User, Edit, Trophy, Download, Lock, Eye, EyeOff, X, Smartphone, Check, Loader2, Shield, LogOut, Users, Video, Plus, Key, BarChart2, TrendingUp, TrendingDown, Clock, Filter, ArrowUp, ArrowDown
 } from 'lucide-react'
 import { getBadgeForPercentage } from '@/utils/badge'
-
+import { ReportsPanel, ReportFilter } from '@/components/admin/ReportsPanel'
 interface Student {
   id: string
   phone: string
@@ -116,6 +116,7 @@ export default function AdminPage() {
   const [editingTaskLabel, setEditingTaskLabel] = useState('')
   const [taskError, setTaskError] = useState<string | null>(null)
   const [taskSuccess, setTaskSuccess] = useState<string | null>(null)
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
 
   // Leaderboard / Toppers state
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
@@ -124,6 +125,9 @@ export default function AdminPage() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const [showInstallBtn, setShowInstallBtn] = useState(false)
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false)
+
+  // Reports Filter State
+  const [reportFilter, setReportFilter] = useState<ReportFilter>({ type: 'all' })
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -326,27 +330,23 @@ export default function AdminPage() {
 
     const trimmedName = newStudentName.trim()
     const trimmedPhone = newStudentPhone.trim()
+    const trimmedPassword = newStudentPassword.trim()
 
-    // Only name and password are strictly required
     if (!trimmedName) {
       setAddStudentError('Student name is required.')
       return
     }
-    if (!newStudentPassword) {
+
+    if (!trimmedPassword) {
       setAddStudentError('Password is required.')
-      return
-    }
-    if (newStudentPassword.length < 6) {
-      setAddStudentError('Password must be at least 6 characters long.')
       return
     }
 
     let finalPhone = ''
-    // If admin provided a phone number, validate it's exactly 10 digits and prepend +91
     if (trimmedPhone) {
       const cleanDigits = trimmedPhone.replace(/[\s\-()]/g, '')
       if (!/^\d{10}$/.test(cleanDigits)) {
-        setAddStudentError('Phone number must be exactly 10 digits (no country code). Leave blank to auto-generate.')
+        setAddStudentError('Phone number must be exactly 10 digits.')
         return
       }
       finalPhone = '+91' + cleanDigits
@@ -356,15 +356,19 @@ export default function AdminPage() {
     setAddStudentError(null)
     setAddStudentSuccess(null)
 
-    const result = await addStudentLocal(trimmedName, finalPhone, newStudentPassword, newStudentBatch)
+    const result = await addStudentLocal(trimmedName, finalPhone, trimmedPassword, newStudentBatch)
 
     if (result.success) {
-      const displayPhone = result.student?.phone || 'auto-generated'
-      setAddStudentSuccess(`Student added! Login ID: ${displayPhone}`)
+      if (finalPhone) {
+        setAddStudentSuccess(`Student added! Mobile: ${finalPhone} | Password/PIN: ${result.generatedPin}`)
+      } else {
+        setAddStudentSuccess(`Student added! 4-Digit Login ID & Password: ${result.generatedPin}`)
+      }
       setNewStudentName('')
       setNewStudentPhone('')
       setNewStudentPassword('')
       setNewStudentBatch('HS1')
+      
       // Refresh list
       setStudentsLoading(true)
       const studentList = await loadStudentsWithStats()
@@ -377,7 +381,7 @@ export default function AdminPage() {
       setTimeout(() => {
         setIsAddStudentOpen(false)
         setAddStudentSuccess(null)
-      }, 3000)
+      }, 4000)
     } else {
       setAddStudentError(result.error || 'Failed to add student.')
     }
@@ -654,6 +658,32 @@ export default function AdminPage() {
     }
   }
 
+  // Handle Reorder Main Task
+  const handleReorderMainTask = async (index: number, direction: 'up' | 'down') => {
+    if (direction === 'up' && index === 0) return
+    if (direction === 'down' && index === mainTasks.length - 1) return
+
+    const newTasks = [...mainTasks]
+    const swapIndex = direction === 'up' ? index - 1 : index + 1
+    const temp = newTasks[index]
+    newTasks[index] = newTasks[swapIndex]
+    newTasks[swapIndex] = temp
+
+    // Optimistic update
+    setMainTasks(newTasks)
+    
+    // Save to DB
+    const orderedIds = newTasks.map(t => t.id)
+    const result = await reorderMainTasks(orderedIds)
+    if (!result.success) {
+      setTaskError('Failed to save task order. Reverting...')
+      // Revert if failed
+      const reverted = await getMainTasks()
+      setMainTasks(reverted)
+      setTimeout(() => setTaskError(null), 3000)
+    }
+  }
+
   // Handle Delete Main Task Request
   const handleDeleteMainTask = (id: string, label: string) => {
     setDeletingItem({
@@ -748,6 +778,7 @@ export default function AdminPage() {
                   <span className="hidden sm:inline">Install App</span>
                 </button>
               )}
+
               <div className="hidden md:flex flex-col items-end text-right gap-0.5">
                 <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 cursor-pointer hover:text-blue-600 transition" onClick={handleOpenEditAdminModal}>
                   {adminName}
@@ -1053,8 +1084,14 @@ export default function AdminPage() {
 
                         <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs">
                           <div>
-                            <span className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider">Phone</span>
-                            <span className="font-mono text-slate-800 mt-0.5 block">{student.phone}</span>
+                            <span className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                              {student.phone?.startsWith('+91') && student.phone.length === 7 ? 'Login ID' : 'Phone'}
+                            </span>
+                            <span className="font-mono text-slate-800 mt-0.5 block font-semibold">
+                              {student.phone?.startsWith('+91') && student.phone.length === 7
+                                ? `${student.phone.slice(3)} (Auto-ID)`
+                                : student.phone}
+                            </span>
                           </div>
                           <div>
                             <span className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider">Registered</span>
@@ -1193,15 +1230,15 @@ export default function AdminPage() {
 
                 <form onSubmit={handleVideoUpload} className="space-y-4">
                   {videoError && (
-                    <div className="flex items-center gap-2.5 rounded-xl bg-red-950/30 border border-red-900/50 p-3 text-xs text-red-400">
-                      <AlertCircle className="h-4.5 w-4.5 shrink-0 text-red-500" />
+                    <div className="flex items-center gap-2.5 rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-700 font-semibold">
+                      <AlertCircle className="h-4.5 w-4.5 shrink-0 text-red-600" />
                       <span>{videoError}</span>
                     </div>
                   )}
 
                   {videoSuccess && (
-                    <div className="flex items-center gap-2.5 rounded-xl bg-blue-950/30 border border-blue-900/50 p-3 text-xs text-blue-400">
-                      <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-blue-500" />
+                    <div className="flex items-center gap-2.5 rounded-xl bg-blue-50 border border-blue-200 p-3 text-xs text-blue-700 font-semibold">
+                      <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-blue-600" />
                       <span>{videoSuccess}</span>
                     </div>
                   )}
@@ -1413,7 +1450,50 @@ export default function AdminPage() {
                       {mainTasks.map((task, idx) => (
                         <div
                           key={task.id}
-                          className="flex items-center justify-between p-5 sm:p-6 hover:bg-blue-50/50 transition group"
+                          draggable
+                          onDragStart={(e) => {
+                            setDraggedIndex(idx)
+                            e.dataTransfer.effectAllowed = 'move'
+                            // Required for Firefox
+                            e.dataTransfer.setData('text/plain', idx.toString())
+                            setTimeout(() => {
+                              if (e.target instanceof HTMLElement) {
+                                e.target.classList.add('opacity-40', 'bg-blue-50')
+                              }
+                            }, 0)
+                          }}
+                          onDragEnd={(e) => {
+                            setDraggedIndex(null)
+                            if (e.target instanceof HTMLElement) {
+                              e.target.classList.remove('opacity-40', 'bg-blue-50')
+                            }
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault()
+                            e.dataTransfer.dropEffect = 'move'
+                          }}
+                          onDrop={async (e) => {
+                            e.preventDefault()
+                            if (draggedIndex === null || draggedIndex === idx) return
+
+                            const newTasks = [...mainTasks]
+                            const draggedItem = newTasks[draggedIndex]
+                            newTasks.splice(draggedIndex, 1)
+                            newTasks.splice(idx, 0, draggedItem)
+
+                            setMainTasks(newTasks)
+                            setDraggedIndex(null)
+
+                            const orderedIds = newTasks.map(t => t.id)
+                            const result = await reorderMainTasks(orderedIds)
+                            if (!result.success) {
+                              setTaskError('Failed to save task order. Reverting...')
+                              const reverted = await getMainTasks()
+                              setMainTasks(reverted)
+                              setTimeout(() => setTaskError(null), 3000)
+                            }
+                          }}
+                          className={`flex items-center justify-between p-5 sm:p-6 hover:bg-blue-50/50 transition group cursor-grab active:cursor-grabbing border-b border-transparent hover:border-slate-100 ${draggedIndex === idx ? 'opacity-40 bg-blue-50' : ''}`}
                         >
                           <div className="flex items-center gap-3.5 min-w-0">
                             <span className="text-xs font-mono text-slate-600 bg-slate-100 border border-slate-200 w-6 h-6 flex items-center justify-center rounded-lg font-bold shrink-0">
@@ -1425,6 +1505,23 @@ export default function AdminPage() {
                           </div>
 
                           <div className="flex items-center gap-2 shrink-0 opacity-80 group-hover:opacity-100 transition">
+                            <button
+                              onClick={() => handleReorderMainTask(idx, 'up')}
+                              disabled={idx === 0}
+                              className={`p-1 rounded-lg transition-all ${idx === 0 ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50 cursor-pointer'}`}
+                              title="Move Up"
+                            >
+                              <ArrowUp className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleReorderMainTask(idx, 'down')}
+                              disabled={idx === mainTasks.length - 1}
+                              className={`p-1 rounded-lg transition-all ${idx === mainTasks.length - 1 ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50 cursor-pointer'}`}
+                              title="Move Down"
+                            >
+                              <ArrowDown className="h-4 w-4" />
+                            </button>
+                            <div className="w-px h-4 bg-slate-200 mx-1"></div>
                             <button
                               onClick={() => handleStartEditTask(task)}
                               className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all cursor-pointer"
@@ -1458,194 +1555,40 @@ export default function AdminPage() {
         )}
 
         {/* Section 4: Reports & Analytics */}
-        {activeSection === 'reports' && (() => {
-          const totalStudents = students.length
-          const activeStudents = students.filter(s => !s.inactiveToday).length
-          const inactiveStudents = totalStudents - activeStudents
-          const activePercent = totalStudents > 0 ? Math.round((activeStudents / totalStudents) * 100) : 0
-
-          // Batch breakdown
-          const batches = Array.from(new Set(students.map(s => s.batch).filter(Boolean))) as string[]
-          const batchStats = batches.sort().map(batch => {
-            const batchStudents = students.filter(s => s.batch === batch)
-            const batchActive = batchStudents.filter(s => !s.inactiveToday).length
-            const pct = batchStudents.length > 0 ? Math.round((batchActive / batchStudents.length) * 100) : 0
-            return { batch, total: batchStudents.length, active: batchActive, pct }
-          })
-
-          // Students inactive > 2 days
-          const criticalInactive = students.filter(s => s.inactiveToday && s.lastResponseDaysAgo !== undefined && s.lastResponseDaysAgo > 2)
-            .sort((a, b) => (b.lastResponseDaysAgo || 0) - (a.lastResponseDaysAgo || 0))
-
-          return (
-            <div className="space-y-6 p-6 bg-white rounded-2xl border border-blue-100 shadow-md">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                  <BarChart2 className="h-5 w-5 text-blue-500" />
-                  Reports &amp; Analytics
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">Overview of student activity and batch performance based on today&apos;s data.</p>
-              </div>
-
-              {/* Top Summary Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {[
-                  { label: 'Total Students', value: totalStudents, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' },
-                  { label: 'Active Today', value: activeStudents, icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' },
-                  { label: 'Inactive Today', value: inactiveStudents, icon: TrendingDown, color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-100' },
-                  { label: 'Critical (3d+)', value: criticalInactive.length, icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-100' },
-                ].map(({ label, value, icon: Icon, color, bg, border }) => (
-                  <div key={label} className={`rounded-2xl border p-4 ${bg} ${border}`}>
-                    <div className={`flex items-center gap-2 mb-1.5 ${color}`}>
-                      <Icon className="h-4 w-4 shrink-0" />
-                      <span className="text-xs font-bold uppercase tracking-wider">{label}</span>
-                    </div>
-                    <p className={`text-3xl font-black ${color}`}>{value}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Overall Activity Card */}
-                <div className="bg-slate-50 rounded-2xl border border-slate-200 p-6 space-y-4">
-                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Overall Activity Today</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between text-sm font-semibold">
-                      <span className="text-emerald-600">Active</span>
-                      <span className="text-emerald-700 font-black">{activePercent}%</span>
-                    </div>
-                    <div className="w-full h-4 bg-slate-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full transition-all duration-500"
-                        style={{ width: `${activePercent}%` }}
-                      />
-                    </div>
-                    <div className="flex justify-between text-xs text-slate-500 font-medium">
-                      <span>{activeStudents} active</span>
-                      <span>{inactiveStudents} inactive</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 pt-2 border-t border-slate-200">
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 inline-block" />
-                      <span className="text-xs text-slate-600">Active — submitted at least 1 task today</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Batch Performance */}
-                <div className="bg-slate-50 rounded-2xl border border-slate-200 p-6 space-y-4">
-                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Batch Performance Today</h3>
-                  {batchStats.length > 0 ? (
-                    <div className="space-y-4">
-                      {batchStats.map(({ batch, total, active, pct }) => (
-                        <div key={batch} className="space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">{batch}</span>
-                              <span className="text-xs text-slate-500">{active}/{total} active</span>
-                            </div>
-                            <span className={`text-xs font-black ${pct >= 70 ? 'text-emerald-600' : pct >= 40 ? 'text-amber-600' : 'text-red-600'}`}>
-                              {pct}%
-                            </span>
-                          </div>
-                          <div className="w-full h-3 bg-slate-200 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all duration-500 ${
-                                pct >= 70 ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
-                                : pct >= 40 ? 'bg-gradient-to-r from-amber-400 to-amber-500'
-                                : 'bg-gradient-to-r from-red-400 to-red-500'
-                              }`}
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-slate-400 italic text-center py-6">No batches assigned yet.</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Inactive Alert List */}
-              <div className="bg-slate-50 rounded-2xl border border-red-100 p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-red-500" />
-                    Inactive Alert List <span className="ml-1 text-red-500">(3+ Days)</span>
-                  </h3>
-                  <span className="text-xs bg-red-100 border border-red-200 text-red-600 px-2.5 py-0.5 rounded-full font-bold">
-                    {criticalInactive.length} student{criticalInactive.length !== 1 ? 's' : ''}
-                  </span>
-                </div>
-                {criticalInactive.length > 0 ? (
-                  <div className="divide-y divide-slate-100">
-                    {criticalInactive.map(s => (
-                      <div key={s.id} className="flex items-center justify-between py-3 gap-4">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="h-8 w-8 rounded-full bg-red-100 border border-red-200 flex items-center justify-center shrink-0">
-                            <User className="h-4 w-4 text-red-500" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-slate-800 truncate">{s.name || 'Unnamed'}</p>
-                            <p className="text-xs text-slate-500 font-mono">{s.phone}</p>
-                          </div>
-                          {s.batch && (
-                            <span className="hidden sm:inline text-[10px] font-bold bg-blue-50 border border-blue-100 text-blue-600 px-2 py-0.5 rounded-full shrink-0">
-                              {s.batch}
-                            </span>
-                          )}
-                        </div>
-                        <span className="inline-flex items-center gap-1 bg-red-50 border border-red-200 text-red-600 text-xs font-bold px-3 py-1 rounded-full shrink-0">
-                          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                          {s.lastResponseDaysAgo} day{s.lastResponseDaysAgo !== 1 ? 's' : ''} inactive
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-slate-500">
-                    <CheckCircle2 className="h-10 w-10 text-emerald-400 mx-auto mb-2" />
-                    <p className="text-sm font-medium">No students have been inactive for 3+ days. Great progress!</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )
-        })()}
+        {activeSection === 'reports' && (
+          <ReportsPanel students={students} filter={reportFilter} setFilter={setReportFilter} />
+        )}
       </main>
 
       {/* Password Reset Modal */}
       {resettingStudent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <Key className="h-5 w-5 text-blue-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Key className="h-5 w-5 text-blue-600" />
               Reset Student Password
             </h3>
-            <p className="text-xs text-slate-400 mt-1">
-              Updating password for <strong className="text-slate-300">{resettingStudent.name || resettingStudent.phone}</strong>.
+            <p className="text-xs text-slate-500 mt-1">
+              Updating password for <strong className="text-slate-800 font-bold">{resettingStudent.name || resettingStudent.phone}</strong>.
             </p>
 
             <form onSubmit={handleResetPassword} className="mt-6 space-y-4">
               {resetError && (
-                <div className="flex items-center gap-2 rounded-xl bg-red-950/30 border border-red-900/50 p-3 text-xs text-red-400">
-                  <AlertCircle className="h-4.5 w-4.5 shrink-0 text-red-500" />
+                <div className="flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-700 font-semibold">
+                  <AlertCircle className="h-4.5 w-4.5 shrink-0 text-red-600" />
                   <span>{resetError}</span>
                 </div>
               )}
 
               {resetSuccess && (
-                <div className="flex items-center gap-2 rounded-xl bg-blue-950/30 border border-blue-900/50 p-3 text-xs text-blue-400">
-                  <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-blue-500" />
+                <div className="flex items-center gap-2 rounded-xl bg-blue-50 border border-blue-200 p-3 text-xs text-blue-700 font-semibold">
+                  <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-blue-600" />
                   <span>{resetSuccess}</span>
                 </div>
               )}
 
               <div>
-                <label htmlFor="new-pass" className="block text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                <label htmlFor="new-pass" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                   New Password
                 </label>
                 <div className="relative mt-1.5">
@@ -1656,14 +1599,14 @@ export default function AdminPage() {
                     placeholder="Enter at least 6 characters"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="block w-full px-3.5 py-2.5 pr-10 bg-slate-950/80 border border-slate-800 rounded-xl text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="block w-full px-3.5 py-2.5 pr-10 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-sm font-medium transition"
                   />
                   <button
                     type="button"
                     onClick={() => setShowResetPassword(!showResetPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-blue-600 transition cursor-pointer"
                   >
-                    {showResetPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showResetPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
                   </button>
                 </div>
               </div>
@@ -1676,14 +1619,14 @@ export default function AdminPage() {
                     setResetError(null)
                     setResetSuccess(null)
                   }}
-                  className="px-4 py-2 border border-slate-800 hover:border-slate-700 text-sm font-semibold rounded-xl text-slate-300 hover:bg-slate-800 transition cursor-pointer"
+                  className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-sm font-semibold rounded-xl text-slate-700 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={resetLoading}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-sm font-semibold rounded-xl text-white active:scale-[0.98] transition cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-sm font-bold rounded-xl text-white shadow-md shadow-blue-500/20 active:scale-[0.98] transition cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
                 >
                   {resetLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -1699,33 +1642,30 @@ export default function AdminPage() {
 
       {/* Add Student Modal */}
       {isAddStudentOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <User className="h-5 w-5 text-blue-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <User className="h-5 w-5 text-blue-600" />
               Add New Student
             </h3>
-            <p className="text-xs text-slate-400 mt-1">
-              Create a new student login account in the system.
-            </p>
 
             <form onSubmit={handleAddStudent} className="mt-6 space-y-4">
               {addStudentError && (
-                <div className="flex items-center gap-2 rounded-xl bg-red-950/30 border border-red-900/50 p-3 text-xs text-red-400">
-                  <AlertCircle className="h-4.5 w-4.5 shrink-0 text-red-500" />
+                <div className="flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-700 font-semibold">
+                  <AlertCircle className="h-4.5 w-4.5 shrink-0 text-red-600" />
                   <span>{addStudentError}</span>
                 </div>
               )}
 
               {addStudentSuccess && (
-                <div className="flex items-center gap-2 rounded-xl bg-blue-950/30 border border-blue-900/50 p-3 text-xs text-blue-400">
-                  <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-blue-500" />
+                <div className="flex items-center gap-2 rounded-xl bg-blue-50 border border-blue-200 p-3 text-xs text-blue-700 font-semibold">
+                  <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-blue-600" />
                   <span>{addStudentSuccess}</span>
                 </div>
               )}
 
               <div>
-                <label htmlFor="student-name" className="block text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                <label htmlFor="student-name" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Full Name
                 </label>
                 <input
@@ -1735,39 +1675,36 @@ export default function AdminPage() {
                   placeholder="e.g. Muhammed Bilal"
                   value={newStudentName}
                   onChange={(e) => setNewStudentName(e.target.value)}
-                  className="mt-1.5 block w-full px-3.5 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  className="mt-1.5 block w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-sm font-medium transition"
                 />
               </div>
 
               <div>
-                <label htmlFor="student-phone" className="block text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                  Phone Number
-                  <span className="ml-1.5 text-[10px] font-bold text-emerald-400 bg-emerald-950/40 border border-emerald-800/50 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
+                <label htmlFor="student-phone" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  Mobile Number
+                  <span className="ml-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full normal-case tracking-normal">
                     Optional
                   </span>
                 </label>
                 <input
                   type="tel"
                   id="student-phone"
-                  placeholder="e.g. 9876543210 — leave blank to auto-generate"
+                  placeholder="e.g. 9876543210 — leave blank to auto-generate PIN"
                   value={newStudentPhone}
                   onChange={(e) => setNewStudentPhone(e.target.value)}
-                  className="mt-1.5 block w-full px-3.5 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  className="mt-1.5 block w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-sm font-medium transition"
                 />
-                <p className="mt-1 text-[11px] text-slate-500 leading-relaxed">
-                  Enter exactly <strong className="text-slate-400">10 digits</strong> without country code (+91), or leave blank to auto-assign a unique ID.
-                </p>
               </div>
 
               <div>
-                <label htmlFor="student-batch" className="block text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                <label htmlFor="student-batch" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Batch
                 </label>
                 <select
                   id="student-batch"
                   value={newStudentBatch}
                   onChange={(e) => setNewStudentBatch(e.target.value)}
-                  className="mt-1.5 block w-full px-3.5 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm cursor-pointer"
+                  className="mt-1.5 block w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-sm cursor-pointer transition"
                 >
                   <option value="HS1">HS1</option>
                   <option value="HS2">HS2</option>
@@ -1780,7 +1717,7 @@ export default function AdminPage() {
               </div>
 
               <div>
-                <label htmlFor="student-pass" className="block text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                <label htmlFor="student-pass" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Password
                 </label>
                 <div className="relative mt-1.5">
@@ -1788,17 +1725,17 @@ export default function AdminPage() {
                     type={showAddStudentPassword ? "text" : "password"}
                     id="student-pass"
                     required
-                    placeholder="Enter at least 6 characters"
+                    placeholder="Enter student password"
                     value={newStudentPassword}
                     onChange={(e) => setNewStudentPassword(e.target.value)}
-                    className="block w-full px-3.5 py-2.5 pr-10 bg-slate-950/80 border border-slate-800 rounded-xl text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="block w-full px-3.5 py-2.5 pr-10 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-sm font-medium transition"
                   />
                   <button
                     type="button"
                     onClick={() => setShowAddStudentPassword(!showAddStudentPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-blue-600 transition cursor-pointer"
                   >
-                    {showAddStudentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showAddStudentPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
                   </button>
                 </div>
               </div>
@@ -1815,14 +1752,14 @@ export default function AdminPage() {
                     setNewStudentPassword('')
                     setNewStudentBatch('HS1')
                   }}
-                  className="px-4 py-2 border border-slate-800 hover:border-slate-700 text-sm font-semibold rounded-xl text-slate-300 hover:bg-slate-800 transition cursor-pointer"
+                  className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-sm font-semibold rounded-xl text-slate-700 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={addStudentLoading}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-sm font-semibold rounded-xl text-white active:scale-[0.98] transition cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-sm font-bold rounded-xl text-white shadow-md shadow-blue-500/20 active:scale-[0.98] transition cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
                 >
                   {addStudentLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -1838,33 +1775,33 @@ export default function AdminPage() {
 
       {/* Edit Student Modal */}
       {editingStudent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <Edit className="h-5 w-5 text-cyan-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Edit className="h-5 w-5 text-blue-600" />
               Edit Student Details
             </h3>
-            <p className="text-xs text-slate-400 mt-1">
-              Update name and phone number for <strong className="text-slate-300">{editingStudent.name || editingStudent.phone}</strong>.
+            <p className="text-xs text-slate-500 mt-1">
+              Update name and phone number for <strong className="text-slate-800 font-bold">{editingStudent.name || editingStudent.phone}</strong>.
             </p>
 
             <form onSubmit={handleEditStudentSubmit} className="mt-6 space-y-4">
               {editStudentError && (
-                <div className="flex items-center gap-2 rounded-xl bg-red-950/30 border border-red-900/50 p-3 text-xs text-red-400">
-                  <AlertCircle className="h-4.5 w-4.5 shrink-0 text-red-500" />
+                <div className="flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-700 font-semibold">
+                  <AlertCircle className="h-4.5 w-4.5 shrink-0 text-red-600" />
                   <span>{editStudentError}</span>
                 </div>
               )}
 
               {editStudentSuccess && (
-                <div className="flex items-center gap-2 rounded-xl bg-blue-950/30 border border-blue-900/50 p-3 text-xs text-blue-400">
-                  <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-blue-500" />
+                <div className="flex items-center gap-2 rounded-xl bg-blue-50 border border-blue-200 p-3 text-xs text-blue-700 font-semibold">
+                  <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-blue-600" />
                   <span>{editStudentSuccess}</span>
                 </div>
               )}
 
               <div>
-                <label htmlFor="edit-student-name" className="block text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                <label htmlFor="edit-student-name" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Full Name
                 </label>
                 <input
@@ -1874,12 +1811,12 @@ export default function AdminPage() {
                   placeholder="Muhammed Bilal"
                   value={editStudentName}
                   onChange={(e) => setEditStudentName(e.target.value)}
-                  className="mt-1.5 block w-full px-3.5 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm"
+                  className="mt-1.5 block w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-sm font-medium transition"
                 />
               </div>
 
               <div>
-                <label htmlFor="edit-student-phone" className="block text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                <label htmlFor="edit-student-phone" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Phone Number
                 </label>
                 <input
@@ -1889,19 +1826,19 @@ export default function AdminPage() {
                   placeholder="+919876543216"
                   value={editStudentPhone}
                   onChange={(e) => setEditStudentPhone(e.target.value)}
-                  className="mt-1.5 block w-full px-3.5 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm"
+                  className="mt-1.5 block w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-sm font-medium transition"
                 />
               </div>
 
               <div>
-                <label htmlFor="edit-student-batch" className="block text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                <label htmlFor="edit-student-batch" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Batch
                 </label>
                 <select
                   id="edit-student-batch"
                   value={editStudentBatch}
                   onChange={(e) => setEditStudentBatch(e.target.value)}
-                  className="mt-1.5 block w-full px-3.5 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm cursor-pointer"
+                  className="mt-1.5 block w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-sm cursor-pointer transition"
                 >
                   <option value="HS1">HS1</option>
                   <option value="HS2">HS2</option>
@@ -1921,14 +1858,14 @@ export default function AdminPage() {
                     setEditStudentError(null)
                     setEditStudentSuccess(null)
                   }}
-                  className="px-4 py-2 border border-slate-800 hover:border-slate-700 text-sm font-semibold rounded-xl text-slate-300 hover:bg-slate-800 transition cursor-pointer"
+                  className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-sm font-semibold rounded-xl text-slate-700 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={editStudentLoading}
-                  className="px-5 py-2 bg-cyan-600 hover:bg-cyan-500 text-slate-950 text-sm font-bold rounded-xl active:scale-[0.98] transition cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-sm font-bold rounded-xl text-white shadow-md shadow-blue-500/20 active:scale-[0.98] transition cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
                 >
                   {editStudentLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -1944,34 +1881,34 @@ export default function AdminPage() {
 
       {/* Change Admin Password Modal */}
       {isChangePassOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="flex items-center gap-3 mb-1">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-950 border border-blue-900">
-                <Lock className="h-5 w-5 text-blue-400" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 border border-blue-200">
+                <Lock className="h-5 w-5 text-blue-600" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white">Change Password</h3>
-                <p className="text-xs text-slate-400">Update your admin account password.</p>
+                <h3 className="text-lg font-bold text-slate-900">Change Password</h3>
+                <p className="text-xs text-slate-500">Update your admin account password.</p>
               </div>
             </div>
 
             <form onSubmit={handleChangeAdminPassword} className="mt-6 space-y-4">
               {changePassError && (
-                <div className="flex items-center gap-2 rounded-xl bg-red-950/30 border border-red-900/50 p-3 text-xs text-red-400">
-                  <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
+                <div className="flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-700 font-semibold">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
                   <span>{changePassError}</span>
                 </div>
               )}
               {changePassSuccess && (
-                <div className="flex items-center gap-2 rounded-xl bg-blue-950/30 border border-blue-900/50 p-3 text-xs text-blue-400">
-                  <CheckCircle2 className="h-4 w-4 shrink-0 text-blue-500" />
+                <div className="flex items-center gap-2 rounded-xl bg-blue-50 border border-blue-200 p-3 text-xs text-blue-700 font-semibold">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-blue-600" />
                   <span>{changePassSuccess}</span>
                 </div>
               )}
 
               <div>
-                <label htmlFor="cp-current" className="block text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                <label htmlFor="cp-current" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Current Password
                 </label>
                 <div className="relative mt-1.5">
@@ -1982,20 +1919,20 @@ export default function AdminPage() {
                     placeholder="Enter your current password"
                     value={changePassCurrent}
                     onChange={(e) => setChangePassCurrent(e.target.value)}
-                    className="block w-full px-3.5 py-2.5 pr-10 bg-slate-950/80 border border-slate-800 rounded-xl text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="block w-full px-3.5 py-2.5 pr-10 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-sm font-medium transition"
                   />
                   <button
                     type="button"
                     onClick={() => setShowChangePassCurrent(!showChangePassCurrent)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-blue-600 transition cursor-pointer"
                   >
-                    {showChangePassCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showChangePassCurrent ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
                   </button>
                 </div>
               </div>
 
               <div>
-                <label htmlFor="cp-new" className="block text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                <label htmlFor="cp-new" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                   New Password
                 </label>
                 <div className="relative mt-1.5">
@@ -2006,25 +1943,25 @@ export default function AdminPage() {
                     placeholder="At least 6 characters"
                     value={changePassNew}
                     onChange={(e) => setChangePassNew(e.target.value)}
-                    className="block w-full px-3.5 py-2.5 pr-10 bg-slate-950/80 border border-slate-800 rounded-xl text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="block w-full px-3.5 py-2.5 pr-10 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-sm font-medium transition"
                   />
                   <button
                     type="button"
                     onClick={() => setShowChangePassNew(!showChangePassNew)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-blue-600 transition cursor-pointer"
                   >
-                    {showChangePassNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showChangePassNew ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
                   </button>
                 </div>
                 {changePassNew.length > 0 && (
                   <div className="mt-1.5 flex items-center gap-2">
-                    <div className={`h-1 flex-1 rounded-full transition-all ${
-                      changePassNew.length < 6 ? 'bg-red-600' :
-                      changePassNew.length < 10 ? 'bg-amber-500' : 'bg-blue-500'
+                    <div className={`h-1.5 flex-1 rounded-full transition-all ${
+                      changePassNew.length < 6 ? 'bg-red-500' :
+                      changePassNew.length < 10 ? 'bg-amber-500' : 'bg-blue-600'
                     }`} />
                     <span className={`text-[10px] font-bold ${
-                      changePassNew.length < 6 ? 'text-red-400' :
-                      changePassNew.length < 10 ? 'text-amber-400' : 'text-blue-400'
+                      changePassNew.length < 6 ? 'text-red-600' :
+                      changePassNew.length < 10 ? 'text-amber-700' : 'text-blue-700'
                     }`}>
                       {changePassNew.length < 6 ? 'Too short' : changePassNew.length < 10 ? 'Fair' : 'Strong'}
                     </span>
@@ -2033,7 +1970,7 @@ export default function AdminPage() {
               </div>
 
               <div>
-                <label htmlFor="cp-confirm" className="block text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                <label htmlFor="cp-confirm" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Confirm New Password
                 </label>
                 <div className="relative mt-1.5">
@@ -2044,28 +1981,28 @@ export default function AdminPage() {
                     placeholder="Re-enter new password"
                     value={changePassConfirm}
                     onChange={(e) => setChangePassConfirm(e.target.value)}
-                    className={`block w-full px-3.5 py-2.5 pr-10 bg-slate-950/80 border rounded-xl text-white placeholder-slate-700 focus:outline-none focus:ring-2 text-sm transition ${
+                    className={`block w-full px-3.5 py-2.5 pr-10 bg-slate-50 border rounded-xl text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 text-sm font-medium transition ${
                       changePassConfirm.length > 0 && changePassConfirm !== changePassNew
-                        ? 'border-red-800 focus:ring-red-500'
+                        ? 'border-red-400 focus:ring-red-500/20 focus:border-red-600'
                         : changePassConfirm.length > 0 && changePassConfirm === changePassNew
-                        ? 'border-blue-800 focus:ring-blue-500'
-                        : 'border-slate-800 focus:ring-blue-500'
+                        ? 'border-blue-400 focus:ring-blue-500/20 focus:border-blue-600'
+                        : 'border-slate-300 focus:ring-blue-500/20 focus:border-blue-600'
                     }`}
                   />
                   <button
                     type="button"
                     onClick={() => setShowChangePassConfirm(!showChangePassConfirm)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-blue-600 transition cursor-pointer"
                   >
-                    {showChangePassConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showChangePassConfirm ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
                   </button>
                 </div>
                 {changePassConfirm.length > 0 && changePassConfirm !== changePassNew && (
-                  <p className="mt-1 text-[10px] text-red-400 font-medium">Passwords do not match</p>
+                  <p className="mt-1 text-[11px] text-red-600 font-semibold">Passwords do not match</p>
                 )}
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800 mt-6">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 mt-6">
                 <button
                   type="button"
                   onClick={() => {
@@ -2073,14 +2010,14 @@ export default function AdminPage() {
                     setChangePassError(null)
                     setChangePassSuccess(null)
                   }}
-                  className="px-4 py-2 border border-slate-800 hover:border-slate-700 text-sm font-semibold rounded-xl text-slate-300 hover:bg-slate-800 transition cursor-pointer"
+                  className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-sm font-semibold rounded-xl text-slate-700 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={changePassLoading}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-sm font-bold rounded-xl text-white active:scale-[0.98] transition cursor-pointer disabled:opacity-50 disabled:pointer-events-none flex items-center gap-2"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-sm font-bold rounded-xl text-white shadow-md shadow-blue-500/20 active:scale-[0.98] transition cursor-pointer disabled:opacity-50 disabled:pointer-events-none flex items-center gap-2"
                 >
                   {changePassLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -2096,33 +2033,33 @@ export default function AdminPage() {
 
       {/* Edit Admin Modal */}
       {isEditAdminOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <Shield className="h-5 w-5 text-blue-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Shield className="h-5 w-5 text-blue-600" />
               Edit Admin Profile
             </h3>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-slate-500 mt-1">
               Update administrative name and admin username.
             </p>
 
             <form onSubmit={handleEditAdminSubmit} className="mt-6 space-y-4">
               {editAdminError && (
-                <div className="flex items-center gap-2 rounded-xl bg-red-950/30 border border-red-900/50 p-3 text-xs text-red-400">
-                  <AlertCircle className="h-4.5 w-4.5 shrink-0 text-red-500" />
+                <div className="flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-700 font-semibold">
+                  <AlertCircle className="h-4.5 w-4.5 shrink-0 text-red-600" />
                   <span>{editAdminError}</span>
                 </div>
               )}
 
               {editAdminSuccess && (
-                <div className="flex items-center gap-2 rounded-xl bg-blue-950/30 border border-blue-900/50 p-3 text-xs text-blue-400">
-                  <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-blue-500" />
+                <div className="flex items-center gap-2 rounded-xl bg-blue-50 border border-blue-200 p-3 text-xs text-blue-700 font-semibold">
+                  <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-blue-600" />
                   <span>{editAdminSuccess}</span>
                 </div>
               )}
 
               <div>
-                <label htmlFor="edit-admin-name" className="block text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                <label htmlFor="edit-admin-name" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Admin Name
                 </label>
                 <input
@@ -2132,19 +2069,19 @@ export default function AdminPage() {
                   placeholder="System Admin"
                   value={editAdminName}
                   onChange={(e) => setEditAdminName(e.target.value)}
-                  className="mt-1.5 block w-full px-3.5 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-white placeholder-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  className="mt-1.5 block w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-sm font-medium transition"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Admin Username</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Admin Username</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. admin"
                   value={editAdminPhone}
                   onChange={(e) => setEditAdminPhone(e.target.value)}
-                  className="w-full px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
                 />
               </div>
 
@@ -2156,14 +2093,14 @@ export default function AdminPage() {
                     setEditAdminError(null)
                     setEditAdminSuccess(null)
                   }}
-                  className="px-4 py-2 border border-slate-800 hover:border-slate-700 text-sm font-semibold rounded-xl text-slate-300 hover:bg-slate-800 transition cursor-pointer"
+                  className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-sm font-semibold rounded-xl text-slate-700 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={editAdminLoading}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-sm font-semibold rounded-xl text-white active:scale-[0.98] transition cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-sm font-bold rounded-xl text-white shadow-md shadow-blue-500/20 active:scale-[0.98] transition cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
                 >
                   {editAdminLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -2179,15 +2116,15 @@ export default function AdminPage() {
 
       {/* Unified Custom Delete Warning Modal */}
       {deletingItem && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-slate-900 border border-red-900/30 rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200 space-y-6">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200 space-y-6">
             <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-950/50 border border-red-900/30 text-red-500 shadow-lg shrink-0">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 border border-red-200 text-red-600 shadow-sm shrink-0">
                 <Trash2 className="h-6 w-6" />
               </div>
               <div className="space-y-1.5 min-w-0">
-                <h3 className="text-lg font-black text-white">{deletingItem.title}</h3>
-                <p className="text-sm text-slate-400 leading-relaxed">
+                <h3 className="text-lg font-black text-slate-900">{deletingItem.title}</h3>
+                <p className="text-sm text-slate-600 leading-relaxed font-medium">
                   {deletingItem.message}
                 </p>
               </div>
@@ -2197,43 +2134,43 @@ export default function AdminPage() {
               <button
                 type="button"
                 onClick={() => setDeletingItem(null)}
-                className="px-4 py-2.5 border border-slate-800 hover:border-slate-700 text-sm font-semibold rounded-xl text-slate-300 hover:bg-slate-800 transition cursor-pointer"
+                className="px-4 py-2.5 border border-slate-200 hover:bg-slate-100 text-sm font-semibold rounded-xl text-slate-700 transition cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDelete}
-                className="px-5 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-sm font-bold rounded-xl text-white shadow-lg shadow-red-900/20 active:scale-[0.98] transition cursor-pointer"
+                className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-sm font-bold rounded-xl text-white shadow-md shadow-red-500/20 active:scale-[0.98] transition cursor-pointer"
               >
                 Delete
               </button>
             </div>
           </div>
-    </div>
+        </div>
       )}
 
       {/* Install App Modal */}
       {isInstallModalOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200 relative">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200 relative">
             <div className="flex flex-col items-center text-center space-y-4">
-              <div className="h-12 w-12 bg-cyan-950/50 rounded-full flex items-center justify-center border border-cyan-900/50">
-                <Smartphone className="h-6 w-6 text-cyan-400" />
+              <div className="h-12 w-12 bg-blue-50 rounded-full flex items-center justify-center border border-blue-200">
+                <Smartphone className="h-6 w-6 text-blue-600" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white mb-2">Install App</h3>
-                <p className="text-sm text-slate-300">To install this app on your device:</p>
-                <ol className="text-sm text-slate-400 mt-4 text-left space-y-3 list-decimal list-inside">
+                <h3 className="text-lg font-bold text-slate-900 mb-2">Install App</h3>
+                <p className="text-sm text-slate-600">To install this app on your device:</p>
+                <ol className="text-sm text-slate-600 mt-4 text-left space-y-3 list-decimal list-inside font-medium">
                   <li>In your browser menu, tap <strong>Share</strong> or <strong>Menu</strong> (three dots).</li>
                   <li>Select <strong>Add to Home screen</strong> or <strong>Install App</strong>.</li>
                 </ol>
               </div>
               <button
                 onClick={() => setIsInstallModalOpen(false)}
-                className="mt-6 w-full py-2.5 flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl transition-colors"
+                className="mt-6 w-full py-2.5 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md shadow-blue-500/20 transition-colors"
               >
-                <Check className="h-4 w-4 text-cyan-400" />
+                <Check className="h-4 w-4 text-white" />
                 Got it
               </button>
             </div>

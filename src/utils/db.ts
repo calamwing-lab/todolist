@@ -48,9 +48,19 @@ const STORAGE_KEYS = {
 const isBrowser = () => typeof window !== 'undefined'
 
 export async function login(phone: string, pass: string): Promise<{ success: boolean; user?: User; error?: string }> {
+  if (isBrowser()) {
+    // Explicitly clear any stale session data before starting a new login
+    // This prevents stale state from interfering with the new session
+    localStorage.removeItem(STORAGE_KEYS.SESSION)
+    document.cookie = 'user_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax'
+  }
+
   let normalizedPhone = phone.trim()
   if (normalizedPhone.toLowerCase() === 'admin1') {
     normalizedPhone = '919876543210'
+  } else if (/^\d{4}$/.test(normalizedPhone)) {
+    // 4-digit generated student login ID
+    normalizedPhone = '91' + normalizedPhone
   } else if (!normalizedPhone.startsWith('+')) {
     if (normalizedPhone.length === 10) {
       normalizedPhone = '91' + normalizedPhone
@@ -60,12 +70,27 @@ export async function login(phone: string, pass: string): Promise<{ success: boo
   const cleanPhone = normalizedPhone.replace('+', '').trim()
   const email = `${cleanPhone}@tracker.com`
 
+  const effectivePassword = pass.length < 6 ? pass + pass : pass
+
   const supabase = createClient()
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({
+    let authRes = await supabase.auth.signInWithPassword({
       email,
-      password: pass
+      password: effectivePassword
     })
+
+    // Fallback if pass was stored without double padding
+    if (authRes.error && pass.length < 6 && effectivePassword !== pass) {
+      const fallbackRes = await supabase.auth.signInWithPassword({
+        email,
+        password: pass
+      })
+      if (!fallbackRes.error) {
+        authRes = fallbackRes
+      }
+    }
+
+    const { data, error } = authRes
 
     if (error) {
       return { success: false, error: error.message }
@@ -200,60 +225,72 @@ export async function resetStudentPassword(studentId: string, newPass: string): 
   }
 }
 
-// Generates a unique 10-digit numeric phone string not already used in the DB.
-async function generateUniquePhone(): Promise<string> {
+// Generates a unique 4-digit PIN string (1000-9999) not already used in DB
+export async function generateUnique4DigitPin(): Promise<string> {
   const supabase = createClient()
-  for (let attempt = 0; attempt < 10; attempt++) {
-    // Random 10-digit number (first digit 6-9, like Indian mobile numbers)
-    const first = String(Math.floor(Math.random() * 4) + 6) // 6,7,8,9
-    const rest = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join('')
-    const candidate = first + rest
-    // Check uniqueness in users table
-    const { data } = await supabase
-      .from('users')
-      .select('id')
-      .eq('phone', '+91' + candidate)
-      .maybeSingle()
-    if (!data) return candidate // not found → unique
+  try {
+    const { data: users } = await supabase.from('users').select('phone')
+    const existing = new Set((users || []).map(u => u.phone || ''))
+
+    for (let attempt = 0; attempt < 500; attempt++) {
+      const pin = String(Math.floor(1000 + Math.random() * 9000))
+      if (!existing.has(pin) && !existing.has('+91' + pin) && !existing.has('91' + pin)) {
+        return pin
+      }
+    }
+  } catch (e) {
+    console.error('Error checking pin uniqueness:', e)
   }
-  // Fallback: timestamp-based suffix (guaranteed unique enough)
-  return String(6000000000 + (Date.now() % 1000000000)).slice(0, 10)
+  return String(Math.floor(1000 + Math.random() * 9000))
 }
 
-export async function addStudent(name: string, phone: string, pass: string, batch?: string): Promise<{ success: boolean; student?: User; error?: string }> {
-  const trimmedPhone = phone.trim()
+export async function addStudent(
+  name: string,
+  phone?: string,
+  pass?: string,
+  batch?: string
+): Promise<{ success: boolean; student?: User; generatedPin?: string; error?: string }> {
+  const trimmedPhone = (phone || '').trim()
   let formattedPhone = ''
+  let finalPassword = ''
+  let generatedPin = ''
 
-  // If phone is blank (admin left it empty), auto-generate a unique 10-digit number
+  // If phone is blank, auto-generate a unique 4-digit PIN
   if (!trimmedPhone) {
-    const rawGenerated = await generateUniquePhone()
-    formattedPhone = '+91' + rawGenerated
+    generatedPin = await generateUnique4DigitPin()
+    formattedPhone = '+91' + generatedPin
+    finalPassword = generatedPin
   } else {
-    // Standardize input by removing non-digits, except possible leading plus sign
     const cleanedPhone = trimmedPhone.replace(/[\s\-()]/g, '')
     if (cleanedPhone.startsWith('+91')) {
       const numericPart = cleanedPhone.slice(3)
-      if (!/^\d{10}$/.test(numericPart)) {
-        return { success: false, error: 'Phone number must be exactly 10 digits.' }
+      if (!/^\d{10}$/.test(numericPart) && !/^\d{4}$/.test(numericPart)) {
+        return { success: false, error: 'Phone number must be exactly 10 digits (or 4-digit ID).' }
       }
       formattedPhone = cleanedPhone
     } else if (cleanedPhone.startsWith('91') && cleanedPhone.length === 12) {
-      const numericPart = cleanedPhone.slice(2)
-      if (!/^\d{10}$/.test(numericPart)) {
-        return { success: false, error: 'Phone number must be exactly 10 digits.' }
-      }
       formattedPhone = '+' + cleanedPhone
     } else {
       const cleanDigits = cleanedPhone.replace(/\D/g, '')
-      if (!/^\d{10}$/.test(cleanDigits)) {
+      if (!/^\d{10}$/.test(cleanDigits) && !/^\d{4}$/.test(cleanDigits)) {
         return { success: false, error: 'Phone number must be exactly 10 digits.' }
       }
       formattedPhone = '+91' + cleanDigits
     }
+    
+    // Auto-generate 4-digit PIN password if pass is not provided or too short
+    if (pass && pass.trim()) {
+      finalPassword = pass.trim()
+      generatedPin = pass.trim()
+    } else {
+      generatedPin = await generateUnique4DigitPin()
+      finalPassword = generatedPin
+    }
   }
 
   try {
-    const authRes = await createStudentAuth(name.trim(), formattedPhone, pass, batch)
+    const studentBatch = batch || 'HS1'
+    const authRes = await createStudentAuth(name.trim(), formattedPhone, finalPassword, studentBatch)
     if (!authRes.success || !authRes.user) {
       return { success: false, error: authRes.error }
     }
@@ -261,7 +298,7 @@ export async function addStudent(name: string, phone: string, pass: string, batc
     const supabase = createClient()
     await supabase
       .from('users')
-      .update({ name: name.trim(), batch })
+      .update({ name: name.trim(), batch: studentBatch })
       .eq('id', authRes.user.id)
 
     const newStudent: User = {
@@ -269,13 +306,13 @@ export async function addStudent(name: string, phone: string, pass: string, batc
       phone: formattedPhone,
       name: name.trim(),
       role: 'student',
-      batch,
+      batch: studentBatch,
       created_at: authRes.user.created_at,
       skills: [],
       personalTasks: []
     }
 
-    return { success: true, student: newStudent }
+    return { success: true, student: newStudent, generatedPin }
   } catch (e: any) {
     return { success: false, error: e.message || 'Failed to create student.' }
   }
@@ -502,6 +539,23 @@ export async function getStudentHistoryLast7Days(userId: string, dates: string[]
   }
 }
 
+export async function getStudentAllTasks(userId: string): Promise<DailyTask[]> {
+  const supabase = createClient()
+  try {
+    const { data, error } = await supabase
+      .from('daily_tasks')
+      .select('*')
+      .eq('user_id', userId)
+      .order('date', { ascending: false })
+
+    if (error) throw error
+    return data || []
+  } catch (e: any) {
+    console.error('getStudentAllTasks error:', e)
+    return []
+  }
+}
+
 export async function updateStudentSkills(studentId: string, skills: string[]): Promise<{ success: boolean; error?: string }> {
   const supabase = createClient()
   try {
@@ -619,10 +673,32 @@ export async function getMainTasks(): Promise<MainTask[]> {
     const { data, error } = await supabase
       .from('main_tasks')
       .select('*')
-      .order('id', { ascending: true })
 
     if (error) throw error
-    return data || []
+    if (!data) return []
+
+    const orderRow = data.find(t => t.id === '_task_order')
+    const normalTasks = data.filter(t => t.id !== '_task_order')
+
+    if (orderRow) {
+      try {
+        const orderArr = JSON.parse(orderRow.label) as string[]
+        normalTasks.sort((a, b) => {
+          const idxA = orderArr.indexOf(a.id)
+          const idxB = orderArr.indexOf(b.id)
+          if (idxA === -1 && idxB === -1) return a.id.localeCompare(b.id)
+          if (idxA === -1) return 1
+          if (idxB === -1) return -1
+          return idxA - idxB
+        })
+      } catch (e) {
+        normalTasks.sort((a, b) => a.id.localeCompare(b.id))
+      }
+    } else {
+      normalTasks.sort((a, b) => a.id.localeCompare(b.id))
+    }
+
+    return normalTasks
   } catch (e: any) {
     console.error('getMainTasks error:', e)
     return []
@@ -696,6 +772,35 @@ export async function deleteMainTask(id: string): Promise<{ success: boolean; er
   }
 
   return { success: true }
+}
+
+export async function reorderMainTasks(orderedIds: string[]): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient()
+  try {
+    const jsonStr = JSON.stringify(orderedIds)
+    
+    // Check if _task_order exists
+    const { data } = await supabase.from('main_tasks').select('id').eq('id', '_task_order').maybeSingle()
+    
+    if (data) {
+      // update
+      const { error } = await supabase
+        .from('main_tasks')
+        .update({ label: jsonStr })
+        .eq('id', '_task_order')
+      if (error) return { success: false, error: error.message }
+    } else {
+      // insert
+      const { error } = await supabase
+        .from('main_tasks')
+        .insert({ id: '_task_order', label: jsonStr })
+      if (error) return { success: false, error: error.message }
+    }
+    
+    return { success: true }
+  } catch (e: any) {
+    return { success: false, error: e.message }
+  }
 }
 
 // Aliases to satisfy existing components that might be calling *Local functions

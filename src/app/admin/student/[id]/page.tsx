@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { getBadgeForPercentage } from '@/utils/badge'
 import { getStudentAdminData } from '@/app/admin/actions'
+import { StudentReportView } from '@/components/StudentReportView'
 
 
 
@@ -119,12 +120,7 @@ export default function StudentHistoryPage() {
     }
   }, [studentId])
 
-  const toggleDayExpansion = (date: string) => {
-    setExpandedDates(prev => ({
-      ...prev,
-      [date]: !prev[date]
-    }))
-  }
+  // (Expanded dates state moved to component)
 
   // Handle toggling a personal task completion state
   const handleTogglePersonalTask = async (taskId: string) => {
@@ -395,178 +391,7 @@ export default function StudentHistoryPage() {
 
             {/* Right Column: 7-Day History Accordion */}
             <div className="lg:col-span-2 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 px-1">
-                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-blue-600" />
-                  7-Day History Detail
-                </h3>
-                <span className="text-xs text-slate-500 font-semibold italic">
-                  View daily task completion details
-                </span>
-              </div>
-
-              {/* 7-Day Progress Graph Card */}
-              {(() => {
-                const chartData = [...history].reverse().map(day => {
-                  const dateObj = new Date(day.date + 'T00:00:00')
-                  const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' }) // Mon, Tue, etc.
-                  const formattedDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) // Jul 12
-                  const todayStr = new Date().toLocaleDateString('en-CA')
-                  const isToday = day.date === todayStr
-
-                  return {
-                    day: dayName,
-                    date: formattedDate,
-                    percentage: day.percentage,
-                    isToday
-                  }
-                })
-
-                return (
-                  <div className="bg-white border border-slate-200 p-6 sm:p-8 rounded-2xl shadow-sm space-y-5 hover:shadow-md transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-4 duration-500 delay-75">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-3 gap-2">
-                      <h3 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 min-w-0">
-                        <Calendar className="h-4.5 w-4.5 text-blue-600 shrink-0" />
-                        <span className="truncate">7-Day Completion Progress</span>
-                      </h3>
-                      <span className="text-[9px] sm:text-[10px] text-slate-500 font-mono font-semibold">Weekly Analytics</span>
-                    </div>
-
-                    {/* Custom SVG/CSS Bar Graph */}
-                    <div className="pt-2">
-                      <div className="relative flex items-end justify-between h-48 border-b border-slate-100 pb-2 px-2 gap-1 sm:gap-2">
-                        {/* Background Grid Lines */}
-                        <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pr-1 select-none">
-                          <div className="w-full border-t border-slate-100/80 h-0 flex justify-end"><span className="text-[8px] text-slate-500 -mt-1.5 bg-white px-1 rounded font-mono font-semibold">100%</span></div>
-                          <div className="w-full border-t border-slate-100/80 h-0 flex justify-end"><span className="text-[8px] text-slate-500 -mt-1.5 bg-white px-1 rounded font-mono font-semibold">75%</span></div>
-                          <div className="w-full border-t border-slate-100/80 h-0 flex justify-end"><span className="text-[8px] text-slate-500 -mt-1.5 bg-white px-1 rounded font-mono font-semibold">50%</span></div>
-                          <div className="w-full border-t border-slate-100/80 h-0 flex justify-end"><span className="text-[8px] text-slate-500 -mt-1.5 bg-white px-1 rounded font-mono font-semibold">25%</span></div>
-                          <div className="w-full h-0 flex justify-end"><span className="text-[8px] text-slate-500 -mt-1.5 bg-white px-1 rounded font-mono font-semibold">0%</span></div>
-                        </div>
-
-                        {/* Bars */}
-                        {chartData.map((stat, idx) => {
-                          const barHeight = isCalculated ? stat.percentage : 0
-                          return (
-                            <div key={idx} className="flex flex-col items-center flex-1 group z-10 relative">
-                              {/* Tooltip on Hover */}
-                              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-800 text-white text-[10px] px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none shadow-xl font-mono text-center z-30 whitespace-nowrap">
-                                <span className="block font-bold text-cyan-400">{stat.percentage}% Done</span>
-                                <span className="block text-[8px] text-slate-350">{stat.date}</span>
-                              </div>
-
-                              {/* Bar Fill Wrapper */}
-                              <div className="relative w-6 sm:w-10 bg-slate-50 rounded-t-md sm:rounded-t-lg border border-slate-200/80 overflow-hidden h-36 flex items-end">
-                                <div 
-                                  style={{ height: `${barHeight}%` }}
-                                  className={`w-full rounded-t-[3px] sm:rounded-t-[5px] bg-gradient-to-t transition-all duration-1000 ease-out ${
-                                    stat.isToday 
-                                      ? 'from-blue-600 to-cyan-500 shadow-sm border-t border-cyan-400' 
-                                      : 'from-blue-400/80 to-blue-500/80'
-                                  }`}
-                                />
-                              </div>
-                              
-                              {/* X-Axis labels */}
-                              <span className={`text-[9px] sm:text-[10px] font-bold mt-2 tracking-wide truncate max-w-full ${stat.isToday ? 'text-blue-600' : 'text-slate-600'}`}>
-                                {stat.day}
-                              </span>
-                              <span className="text-[8px] text-slate-500 font-mono font-semibold">
-                                {stat.date.split(' ')[1]}
-                              </span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })()}
-
-              <div className="space-y-3">
-                {history.map((day) => {
-                  const isExpanded = !!expandedDates[day.date]
-                  const formattedDate = new Date(day.date).toLocaleDateString('en-US', {
-                    weekday: 'long',
-                    month: 'short',
-                    day: 'numeric'
-                  })
-
-                  return (
-                    <div 
-                      key={day.date}
-                      className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm"
-                    >
-                      {/* Accordion Header */}
-                      <div 
-                        onClick={() => toggleDayExpansion(day.date)}
-                        className="flex items-center justify-between p-5 sm:p-6 hover:bg-slate-50/50 transition cursor-pointer select-none"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="h-2.5 w-2.5 rounded-full bg-blue-600" />
-                          <div>
-                            <span className="block font-bold text-sm text-slate-900">
-                              {formattedDate}
-                            </span>
-                            <span className="block text-xs text-slate-600 mt-0.5 font-mono font-semibold">
-                              {day.date}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-5">
-                          {/* Metric info */}
-                          <div className="text-right">
-                            <span className="block text-xs font-bold text-slate-700">
-                              {day.completedCount} / {day.totalCount} Completed
-                            </span>
-                            <span className="text-[10px] text-blue-600 font-bold block mt-0.5">
-                              {day.percentage}% Score
-                            </span>
-                          </div>
-
-                          {/* Icon */}
-                          <div className="text-slate-600 group-hover:text-slate-900">
-                            {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Accordion Detail list with interactive toggles */}
-                      {isExpanded && (
-                        <div className="border-t border-slate-100 bg-slate-50/50 p-5 sm:p-8 animate-in slide-in-from-top-1 duration-150">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {mainTasks.map((task) => {
-                              const isCompleted = !!day.task_data[task.id]
-                              return (
-                                <div 
-                                  key={task.id}
-                                  className={`flex items-start gap-2.5 p-3 rounded-xl border select-none transition-all duration-150 ${
-                                    isCompleted 
-                                      ? 'bg-blue-50 border-blue-200 text-blue-900' 
-                                      : 'bg-gray-50 border-slate-200 text-slate-700'
-                                  }`}
-                                >
-                                  <div className="mt-0.5 shrink-0">
-                                    {isCompleted ? (
-                                      <CheckCircle2 className="h-4.5 w-4.5 text-blue-600 stroke-[2.5]" />
-                                    ) : (
-                                      <XCircle className="h-4.5 w-4.5 text-slate-400" />
-                                    )}
-                                  </div>
-                                  <span className="text-xs font-semibold leading-relaxed">
-                                    {task.label}
-                                  </span>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
+              <StudentReportView userId={studentId} />
             </div>
 
           </div>

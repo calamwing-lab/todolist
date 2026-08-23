@@ -10,8 +10,7 @@ export default function LoginPage() {
 
   const [isAdminLogin, setIsAdminLogin] = useState(false)
   const [isRegistering, setIsRegistering] = useState(false)
-  const [sessionChecked, setSessionChecked] = useState(false)
-  
+
   // Login form states
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
@@ -27,32 +26,6 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [regPhoneError, setRegPhoneError] = useState<string | null>(null)
 
-  // Redirect if session is already present — show spinner while checking
-  useEffect(() => {
-    const user = getCurrentUser()
-    if (user) {
-      if (user.role === 'admin') {
-        router.replace('/admin')
-      } else {
-        router.replace('/student')
-      }
-      // Don't setSessionChecked — let the redirect happen
-    } else {
-      setSessionChecked(true)
-    }
-  }, [])
-
-  // While checking session / redirecting, show a clean loading screen
-  if (!sessionChecked) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-700 border-t-blue-500" />
-          <span className="text-sm text-slate-400 font-medium">Loading...</span>
-        </div>
-      </div>
-    )
-  }
 
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -93,11 +66,10 @@ export default function LoginPage() {
       }
 
       if (res.success && res.user) {
-        router.refresh()
         if (res.user.role === 'admin') {
-          router.push('/admin')
+          window.location.href = '/admin'
         } else {
-          router.push('/student')
+          window.location.href = '/student'
         }
       } else {
         setError(res.error || 'Invalid credentials or login failed.')

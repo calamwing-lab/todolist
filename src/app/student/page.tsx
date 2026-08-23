@@ -2,13 +2,14 @@
 
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getCurrentUser, logout, getLatestVideo, getDailyTasks, saveDailyTasks, getStudentHistoryLast7Days, updateStudentPersonalTasks, getLeaderboard, LeaderboardEntry, PersonalTask, getMainTasks, MainTask, getStudentById, markNotificationsAsRead } from '@/utils/db'
+import { getCurrentUser, logout, getLatestVideo, getDailyTasks, saveDailyTasks, getStudentHistoryLast7Days, updateStudentPersonalTasks, getLeaderboard, LeaderboardEntry, PersonalTask, getMainTasks, MainTask, getStudentById, markNotificationsAsRead, getVideos } from '@/utils/db'
 import { 
   LogOut, GraduationCap, Bell,
-  Play, Calendar, BookOpen, AlertCircle, Loader2, Sparkles, Trophy,
-  Tag, X, Plus, Globe, Download, Smartphone, Check
+  Play, Calendar, BookOpen, AlertCircle, Loader2, Sparkles, Trophy, BarChart2,
+  Tag, X, Plus, Globe, Download, Smartphone, Check, CheckCircle2, XCircle, ExternalLink
 } from 'lucide-react'
 import { getBadgeForPercentage, getNextBadge } from '@/utils/badge'
+import { StudentReportView } from '@/components/StudentReportView'
 
 
 
@@ -31,6 +32,7 @@ export default function StudentPage() {
 
   // Video state
   const [latestVideo, setLatestVideo] = useState<VideoRecord | null>(null)
+  const [videos, setVideos] = useState<VideoRecord[]>([])
   const [hasUnreadNotification, setHasUnreadNotification] = useState(false)
 
   // Checklist state
@@ -54,6 +56,9 @@ export default function StudentPage() {
 
   // Main tasks state
   const [mainTasks, setMainTasks] = useState<MainTask[]>([])
+
+  // Active Tab state
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'report'>('dashboard')
 
   // PWA Install Prompt State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
@@ -186,15 +191,16 @@ export default function StudentPage() {
           localStorage.setItem('dt_session', JSON.stringify(profile))
         }
 
-        // Fetch latest video
-        const video = await getLatestVideo()
-        if (video) {
-          setLatestVideo(video)
+        // Fetch all videos
+        const vids = await getVideos()
+        if (vids.length > 0) {
+          setVideos(vids)
+          setLatestVideo(vids[0])
           
           if (!lastRead) {
             setHasUnreadNotification(true)
           } else {
-            const videoTime = new Date(video.created_at).getTime()
+            const videoTime = new Date(vids[0].created_at).getTime()
             const readTime = new Date(lastRead).getTime()
             if (videoTime > readTime) {
               setHasUnreadNotification(true)
@@ -543,7 +549,33 @@ export default function StudentPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="flex border-b border-blue-100 mb-8 gap-2 sm:gap-4 overflow-x-auto whitespace-nowrap scrollbar-none px-1">
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`flex items-center gap-2 pb-4 pt-2 border-b-2 text-sm font-bold transition-all px-2 cursor-pointer shrink-0 ${
+              activeTab === 'dashboard'
+                ? 'border-blue-600 text-blue-700'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Calendar className="h-4 w-4 shrink-0" />
+            <span>Today's Dashboard</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('report')}
+            className={`flex items-center gap-2 pb-4 pt-2 border-b-2 text-sm font-bold transition-all px-2 cursor-pointer shrink-0 ${
+              activeTab === 'report'
+                ? 'border-blue-600 text-blue-700'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <BarChart2 className="h-4 w-4 shrink-0" />
+            <span>My Progress Report</span>
+          </button>
+        </div>
+
+        {activeTab === 'dashboard' ? (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
           {/* Left Column: Embed & Info */}
           <div className="lg:col-span-1 space-y-6">
@@ -873,6 +905,34 @@ export default function StudentPage() {
                       Uploaded: {latestVideo?.created_at ? new Date(latestVideo.created_at).toLocaleString() : ''}
                     </span>
                   </div>
+
+                  {videos.length > 0 && (
+                    <div className="mt-4 space-y-3 pt-4 border-t border-slate-100">
+                      <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                        <BookOpen className="h-4 w-4 text-blue-600" />
+                        Active Video Library
+                      </h4>
+                      <div className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                        {videos.map((vid) => (
+                          <div key={vid.id} className="p-3 rounded-xl border border-slate-100 bg-white hover:bg-slate-50 transition flex items-center justify-between">
+                            <div className="flex-1 min-w-0 pr-3">
+                              <p className="text-xs font-bold text-slate-900 truncate">{vid.description || 'No description'}</p>
+                              <span className="text-[10px] text-slate-500">{new Date(vid.created_at).toLocaleDateString()}</span>
+                            </div>
+                            <a
+                              href={vid.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-bold px-3 py-1.5 rounded-lg transition shrink-0 inline-flex items-center gap-1"
+                            >
+                              Watch Video
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-slate-100 rounded-xl bg-slate-50">
@@ -944,37 +1004,24 @@ export default function StudentPage() {
                     <div
                       key={task.id}
                       onClick={() => handleToggleTask(task.id)}
-                      className={`group flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer select-none transition-all duration-200 ease-in-out ${
+                      className={`group flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer select-none transition-all duration-200 ease-in-out ${
                         isChecked
-                          ? 'bg-blue-50/40 border-blue-100'
-                          : 'bg-white border-slate-200 hover:border-blue-200 hover:bg-slate-50/50'
+                          ? 'bg-emerald-50 border-emerald-300 hover:border-emerald-400 text-emerald-900 shadow-sm'
+                          : 'bg-red-50 border-red-300 hover:border-red-400 text-red-800'
                       }`}
                     >
-                      {/* Custom Checkbox */}
-                      <div
-                        className={`relative flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all duration-200 ease-in-out ${
-                          isChecked
-                            ? 'bg-blue-600 border-blue-600 shadow-sm shadow-blue-100'
-                            : 'border-slate-200 bg-white group-hover:border-blue-200'
-                        }`}
-                      >
-                        {isChecked && (
-                          <svg viewBox="0 0 12 10" fill="none" className="h-3 w-3">
-                            <polyline
-                              points="1.5,5 4.5,8 10.5,1"
-                              stroke="white"
-                              strokeWidth="2.2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
+                      <div className="mt-0.5 shrink-0 transition-transform group-active:scale-95">
+                        {isChecked ? (
+                          <CheckCircle2 className="h-5 w-5 text-emerald-600 stroke-[2.5]" />
+                        ) : (
+                          <XCircle className="h-5 w-5 text-red-500 stroke-[2.5]" />
                         )}
                       </div>
 
                       <span className={`text-sm font-bold leading-snug transition-all duration-200 ${
                         isChecked
-                          ? 'text-blue-800 opacity-80'
-                          : 'text-slate-900 group-hover:text-slate-900'
+                          ? 'text-emerald-800'
+                          : 'text-red-700'
                       }`}>
                         {task.label}
                       </span>
@@ -1044,8 +1091,12 @@ export default function StudentPage() {
               </div>
             </div>
           </div>
-
         </div>
+        ) : (
+          <div className="max-w-5xl mx-auto space-y-6">
+            <StudentReportView userId={userId!} />
+          </div>
+        )}
       </main>
 
       {/* Install App Modal */}
