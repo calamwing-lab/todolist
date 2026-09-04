@@ -89,41 +89,43 @@ export function PWAInstallPrompt() {
       {/* Trigger Button */}
       <button
         onClick={() => setShowPanel(v => !v)}
-        className="inline-flex items-center gap-1.5 sm:gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-sm hover:shadow px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-extrabold active:scale-[0.98] transition cursor-pointer"
+        className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-sm px-2.5 py-1.5 sm:px-4 sm:py-2 text-[11px] sm:text-sm font-extrabold active:scale-[0.97] transition cursor-pointer"
         title="Install App"
       >
         {installed
           ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-white" />
           : <Download className="h-3.5 w-3.5 shrink-0 text-white animate-bounce" />
         }
-        <span>{installed ? 'Installed!' : 'Install App'}</span>
+        <span className="hidden xs:inline sm:inline">{installed ? 'Installed!' : 'Install App'}</span>
+        <span className="inline xs:hidden sm:hidden">{installed ? '✓' : 'Install'}</span>
       </button>
 
-      {/* Custom In-Page Install Panel */}
+      {/* In-Page Install Panel */}
       {showPanel && (
-        <div className="absolute top-full right-0 mt-2 z-[300] w-72 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden"
+        <div
+          className="absolute top-full right-0 mt-2 z-[300] w-[calc(100vw-2rem)] max-w-xs bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden"
           style={{ animation: 'slideDown 0.2s cubic-bezier(0.16,1,0.3,1)' }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-blue-600 to-cyan-600">
+          <div className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600">
             <span className="text-white font-bold text-sm">Install App</span>
             <button
               onClick={() => setShowPanel(false)}
-              className="text-white/70 hover:text-white transition p-0.5 rounded-lg hover:bg-white/10"
+              className="text-white/70 hover:text-white p-0.5 rounded-lg hover:bg-white/10 transition"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="h-4 w-4" />
             </button>
           </div>
 
           {/* App Info */}
-          <div className="flex items-center gap-3 px-4 py-4 border-b border-slate-100">
-            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-md shrink-0">
-              <Smartphone className="h-6 w-6 text-white" />
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100">
+            <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-md shrink-0">
+              <Smartphone className="h-5 w-5 text-white" />
             </div>
             <div className="min-w-0">
               <p className="text-sm font-extrabold text-slate-900 truncate">Student Daily Tracking</p>
-              <p className="text-[11px] text-slate-400 font-medium truncate">todolist.calam2.vercel.app</p>
-              <p className="text-[10px] text-emerald-600 font-bold mt-0.5">✓ Works offline · Fast · Secure</p>
+              <p className="text-[10px] text-slate-400 font-medium truncate">todolist.calam2.vercel.app</p>
+              <p className="text-[10px] text-emerald-600 font-bold mt-0.5">✓ Offline · Fast · Secure</p>
             </div>
           </div>
 
@@ -147,7 +149,7 @@ export function PWAInstallPrompt() {
 
       <style>{`
         @keyframes slideDown {
-          from { opacity: 0; transform: translateY(-8px) scale(0.97); }
+          from { opacity: 0; transform: translateY(-6px) scale(0.97); }
           to   { opacity: 1; transform: translateY(0)    scale(1); }
         }
       `}</style>
