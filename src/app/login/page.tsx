@@ -4,6 +4,9 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { login, getCurrentUser, addStudentLocal } from '@/utils/db'
 import { Phone, Lock, Eye, EyeOff, Loader2, ShieldAlert, User, BookOpen } from 'lucide-react'
+import { PWAInstallPrompt } from '@/components/PWAInstallPrompt'
+
+import { ScrollReveal } from '@/components/ScrollReveal'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -159,6 +162,11 @@ export default function LoginPage() {
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 left-1/3 -translate-x-1/2 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
 
+      {/* Header Install App Prompt */}
+      <div className="absolute top-4 right-4 z-30">
+        <PWAInstallPrompt />
+      </div>
+
       <div className="relative w-full sm:mx-auto sm:w-full sm:max-w-md z-10">
         <div className="text-center">
           <div 
@@ -182,8 +190,8 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <div className="mt-8 w-full sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="backdrop-blur-md bg-slate-900/60 border border-slate-800 py-8 px-4 shadow-2xl shadow-slate-950/80 rounded-2xl sm:px-10 ring-1 ring-white/5">
+        <ScrollReveal delay={100} className="w-full sm:mx-auto sm:w-full sm:max-w-md">
+          <div className="backdrop-blur-md bg-slate-900/60 border border-slate-800 py-8 px-4 shadow-2xl shadow-slate-950/80 rounded-2xl sm:px-10 ring-1 ring-white/5 card-hover-effect">
             {isRegistering ? (
               <form className="space-y-5" onSubmit={handleRegister}>
                 {error && (
@@ -435,7 +443,7 @@ export default function LoginPage() {
               </form>
             )}
           </div>
-        </div>
+        </ScrollReveal>
       </div>
     </div>
   )

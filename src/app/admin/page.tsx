@@ -17,6 +17,8 @@ import {
 import { getBadgeForPercentage } from '@/utils/badge'
 import { ReportsPanel, ReportFilter } from '@/components/admin/ReportsPanel'
 import { PWAInstallPrompt } from '@/components/PWAInstallPrompt'
+import { ScrollReveal } from '@/components/ScrollReveal'
+
 interface Student {
   id: string
   phone: string
@@ -73,7 +75,6 @@ export default function AdminPage() {
 
   // Change Admin Password Modal State
   const [isChangePassOpen, setIsChangePassOpen] = useState(false)
-  const [changePassCurrent, setChangePassCurrent] = useState('')
   const [changePassNew, setChangePassNew] = useState('')
   const [changePassConfirm, setChangePassConfirm] = useState('')
 
@@ -94,7 +95,6 @@ export default function AdminPage() {
   // Password Visibility States
   const [showResetPassword, setShowResetPassword] = useState(false)
   const [showAddStudentPassword, setShowAddStudentPassword] = useState(false)
-  const [showChangePassCurrent, setShowChangePassCurrent] = useState(false)
   const [showChangePassNew, setShowChangePassNew] = useState(false)
   const [showChangePassConfirm, setShowChangePassConfirm] = useState(false)
 
@@ -515,20 +515,12 @@ export default function AdminPage() {
     e.preventDefault()
     if (!adminId) return
 
-    if (!changePassCurrent.trim()) {
-      setChangePassError('Please enter your current password.')
-      return
-    }
     if (changePassNew.length < 6) {
       setChangePassError('New password must be at least 6 characters.')
       return
     }
     if (changePassNew !== changePassConfirm) {
       setChangePassError('New passwords do not match.')
-      return
-    }
-    if (changePassNew === changePassCurrent) {
-      setChangePassError('New password must be different from the current one.')
       return
     }
 
@@ -539,7 +531,6 @@ export default function AdminPage() {
     const result = await changeAdminPassword(adminId, changePassNew)
     if (result.success) {
       setChangePassSuccess('Password changed successfully!')
-      setChangePassCurrent('')
       setChangePassNew('')
       setChangePassConfirm('')
       setTimeout(() => {
@@ -749,7 +740,6 @@ export default function AdminPage() {
                   onClick={() => {
                     setChangePassError(null)
                     setChangePassSuccess(null)
-                    setChangePassCurrent('')
                     setChangePassNew('')
                     setChangePassConfirm('')
                     setIsChangePassOpen(true)
@@ -831,47 +821,49 @@ export default function AdminPage() {
         {activeSection === 'students' && (
           <div className="space-y-6">
             {/* Header with Search */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white shadow-sm p-5 sm:p-6 rounded-xl border border-blue-100">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                  Registered Students
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Manage login accounts and reset passwords. Passwords are securely isolated.
-                </p>
-              </div>
-
-              <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
-                <div className="relative w-full sm:w-80">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search student by name or phone..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-slate-400 shadow-sm transition"
-                  />
+            <ScrollReveal delay={50}>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white shadow-sm p-5 sm:p-6 rounded-xl border border-blue-100 card-hover-effect">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                    Registered Students
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Manage login accounts and reset passwords. Passwords are securely isolated.
+                  </p>
                 </div>
-                <button
-                  onClick={() => setShowInactiveOnly(!showInactiveOnly)}
-                  className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold active:scale-[0.98] transition cursor-pointer border ${
-                    showInactiveOnly
-                      ? 'bg-orange-500 hover:bg-orange-400 text-white border-orange-400'
-                      : 'bg-white hover:bg-orange-50 text-orange-600 border-orange-200'
-                  }`}
-                >
-                  <Filter className="h-4 w-4" />
-                  {showInactiveOnly ? 'All Students' : 'Inactive Only'}
-                </button>
-                <button
-                  onClick={() => setIsAddStudentOpen(true)}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-2 text-sm font-semibold active:scale-[0.98] transition cursor-pointer text-white"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Student
-                </button>
+
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                  <div className="relative w-full sm:w-80">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search student by name or phone..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-slate-400 shadow-sm transition"
+                    />
+                  </div>
+                  <button
+                    onClick={() => setShowInactiveOnly(!showInactiveOnly)}
+                    className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold active:scale-[0.98] transition cursor-pointer border ${
+                      showInactiveOnly
+                        ? 'bg-orange-500 hover:bg-orange-400 text-white border-orange-400'
+                        : 'bg-white hover:bg-orange-50 text-orange-600 border-orange-200'
+                    }`}
+                  >
+                    <Filter className="h-4 w-4" />
+                    {showInactiveOnly ? 'All Students' : 'Inactive Only'}
+                  </button>
+                  <button
+                    onClick={() => setIsAddStudentOpen(true)}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-2 text-sm font-semibold active:scale-[0.98] transition cursor-pointer text-white"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Student
+                  </button>
+                </div>
               </div>
-            </div>
+            </ScrollReveal>
 
             {/* Grid Layout: Students Table + Toppers / Leaderboard */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
@@ -880,7 +872,7 @@ export default function AdminPage() {
               <div className="lg:col-span-2 space-y-4">
                 
                 {/* Desktop View Table: Hidden on Mobile */}
-                <div className="hidden md:block overflow-x-auto rounded-2xl border border-blue-100 bg-white shadow-md">
+                <div className="hidden md:block overflow-x-auto scrollbar-none rounded-2xl border border-blue-100 bg-white shadow-md">
                   <table className="min-w-full divide-y divide-blue-50 text-left text-sm">
                     <thead className="bg-slate-50 font-semibold text-slate-600">
                       <tr>
@@ -1103,16 +1095,17 @@ export default function AdminPage() {
               </div>
 
               {/* Toppers / Leaderboard Panel */}
-              <div className="lg:col-span-1 bg-white border border-blue-100 rounded-2xl p-6 sm:p-8 shadow-md space-y-4">
-                <div className="flex flex-row items-center justify-between gap-2">
-                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2 min-w-0">
-                    <Trophy className="h-4.5 w-4.5 text-yellow-500 shrink-0" />
-                    Toppers Leaderboard
-                  </h3>
-                  <span className="text-[10px] bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full text-slate-500 font-bold uppercase tracking-wider whitespace-nowrap shrink-0">
-                    7-Day Avg
-                  </span>
-                </div>
+              <ScrollReveal delay={150} className="lg:col-span-1">
+                <div className="bg-white border border-blue-100 rounded-2xl p-6 sm:p-8 shadow-md space-y-4 card-hover-effect">
+                  <div className="flex flex-row items-center justify-between gap-2">
+                    <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2 min-w-0">
+                      <Trophy className="h-4.5 w-4.5 text-yellow-500 shrink-0" />
+                      Toppers Leaderboard
+                    </h3>
+                    <span className="text-[10px] bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full text-slate-500 font-bold uppercase tracking-wider whitespace-nowrap shrink-0">
+                      7-Day Avg
+                    </span>
+                  </div>
 
                 <div className="divide-y divide-slate-100 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar space-y-2 pt-2">
                   {leaderboard.length > 0 ? (
@@ -1167,6 +1160,7 @@ export default function AdminPage() {
                   )}
                 </div>
               </div>
+            </ScrollReveal>
 
             </div>
           </div>
@@ -1176,8 +1170,8 @@ export default function AdminPage() {
         {activeSection === 'videos' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Form Column */}
-            <div className="lg:col-span-1">
-              <div className="bg-white border border-blue-100 p-6 sm:p-8 rounded-2xl shadow-md space-y-6">
+            <ScrollReveal delay={50} className="lg:col-span-1">
+              <div className="bg-white border border-blue-100 p-6 sm:p-8 rounded-2xl shadow-md space-y-6 card-hover-effect">
                 <div>
                   <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                     <Plus className="h-5 w-5 text-blue-400" />
@@ -1245,55 +1239,58 @@ export default function AdminPage() {
                   </button>
                 </form>
               </div>
-            </div>
+            </ScrollReveal>
 
             {/* List Column */}
             <div className="lg:col-span-2 space-y-4">
-              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <Video className="h-5 w-5 text-blue-400" />
-                Active Video Library ({videos.length})
-              </h3>
+              <ScrollReveal delay={100}>
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <Video className="h-5 w-5 text-blue-400" />
+                  Active Video Library ({videos.length})
+                </h3>
+              </ScrollReveal>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {videos.length > 0 ? (
-                  videos.map((vid) => (
-                    <div 
-                      key={vid.id} 
-                      className="group bg-white hover:bg-blue-50/50 border border-slate-200 hover:border-blue-200 shadow-sm p-5 sm:p-6 rounded-2xl flex flex-col justify-between transition-all"
-                    >
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="inline-flex items-center gap-1 text-xs text-red-500 font-bold tracking-wider uppercase">
-                            <Video className="h-3.5 w-3.5" />
-                            YouTube Link
-                          </span>
-                          <button
-                            onClick={() => handleDeleteVideo(vid.id, vid.description)}
-                            className="text-slate-400 hover:text-red-500 p-1 rounded-lg hover:bg-red-50 transition cursor-pointer"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                  videos.map((vid, idx) => (
+                    <ScrollReveal key={vid.id} delay={Math.min(150 + idx * 50, 400)}>
+                      <div 
+                        className="group bg-white hover:bg-blue-50/50 border border-slate-200 hover:border-blue-200 shadow-sm p-5 sm:p-6 rounded-2xl flex flex-col justify-between transition-all card-hover-effect h-full"
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="inline-flex items-center gap-1 text-xs text-red-500 font-bold tracking-wider uppercase">
+                              <Video className="h-3.5 w-3.5" />
+                              YouTube Link
+                            </span>
+                            <button
+                              onClick={() => handleDeleteVideo(vid.id, vid.description)}
+                              className="text-slate-400 hover:text-red-500 p-1 rounded-lg hover:bg-red-50 transition cursor-pointer"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                          <p className="text-sm font-semibold text-slate-700 line-clamp-2">
+                            {vid.description || 'No description provided.'}
+                          </p>
                         </div>
-                        <p className="text-sm font-semibold text-slate-700 line-clamp-2">
-                          {vid.description || 'No description provided.'}
-                        </p>
+                        
+                        <div className="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between">
+                          <a
+                            href={vid.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-blue-600 font-bold hover:text-blue-500 transition"
+                          >
+                            Watch Video
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                          <span className="text-[10px] text-slate-500">
+                            {new Date(vid.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
                       </div>
-                      
-                      <div className="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between">
-                        <a
-                          href={vid.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-blue-600 font-bold hover:text-blue-500 transition"
-                        >
-                          Watch Video
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                        <span className="text-[10px] text-slate-500">
-                          {new Date(vid.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
+                    </ScrollReveal>
                   ))
                 ) : (
                   <div className="col-span-2 text-center py-12 border border-dashed border-slate-300 bg-slate-50 rounded-2xl text-slate-500 font-medium">
@@ -1313,8 +1310,8 @@ export default function AdminPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               
               {/* Add / Edit Task Form Card */}
-              <div className="lg:col-span-1">
-                <div className="bg-white border border-blue-100 p-6 sm:p-8 rounded-2xl shadow-md space-y-4">
+              <ScrollReveal delay={50} className="lg:col-span-1">
+                <div className="bg-white border border-blue-100 p-6 sm:p-8 rounded-2xl shadow-md space-y-4 card-hover-effect">
                   <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
                     {editingTask ? (
                       <>
@@ -1391,20 +1388,21 @@ export default function AdminPage() {
                     </div>
                   </form>
                 </div>
-              </div>
+              </ScrollReveal>
 
               {/* Tasks List Card */}
-              <div className="lg:col-span-2 space-y-4">
-                <div className="flex items-center justify-between px-1">
-                  <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                    <span>Main Tasks List</span>
-                    <span className="text-xs bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full text-slate-500 font-mono">
-                      {mainTasks.length} Tasks
-                    </span>
-                  </h2>
-                </div>
+              <ScrollReveal delay={100} className="lg:col-span-2">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between px-1">
+                    <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                      <span>Main Tasks List</span>
+                      <span className="text-xs bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full text-slate-500 font-mono">
+                        {mainTasks.length} Tasks
+                      </span>
+                    </h2>
+                  </div>
 
-                <div className="bg-white border border-blue-100 rounded-2xl overflow-hidden shadow-md">
+                  <div className="bg-white border border-blue-100 rounded-2xl overflow-hidden shadow-md card-hover-effect">
                   {mainTasks.length > 0 ? (
                     <div className="divide-y divide-slate-100 max-h-[60vh] overflow-y-auto pr-0.5 custom-scrollbar">
                       {mainTasks.map((task, idx) => (
@@ -1508,6 +1506,7 @@ export default function AdminPage() {
                   )}
                 </div>
               </div>
+            </ScrollReveal>
 
             </div>
 
@@ -1866,30 +1865,6 @@ export default function AdminPage() {
                   <span>{changePassSuccess}</span>
                 </div>
               )}
-
-              <div>
-                <label htmlFor="cp-current" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Current Password
-                </label>
-                <div className="relative mt-1.5">
-                  <input
-                    type={showChangePassCurrent ? "text" : "password"}
-                    id="cp-current"
-                    required
-                    placeholder="Enter your current password"
-                    value={changePassCurrent}
-                    onChange={(e) => setChangePassCurrent(e.target.value)}
-                    className="block w-full px-3.5 py-2.5 pr-10 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-sm font-medium transition"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowChangePassCurrent(!showChangePassCurrent)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-blue-600 transition cursor-pointer"
-                  >
-                    {showChangePassCurrent ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
-                  </button>
-                </div>
-              </div>
 
               <div>
                 <label htmlFor="cp-new" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">

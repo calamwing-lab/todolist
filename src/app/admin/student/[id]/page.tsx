@@ -11,8 +11,7 @@ import {
 import { getBadgeForPercentage } from '@/utils/badge'
 import { getStudentAdminData } from '@/app/admin/actions'
 import { StudentReportView } from '@/components/StudentReportView'
-
-
+import { ScrollReveal } from '@/components/ScrollReveal'
 
 interface StudentProfile {
   id: string
@@ -48,11 +47,9 @@ export default function StudentHistoryPage() {
   useEffect(() => {
     const fetchStudentHistory = async () => {
       try {
-        // 1. Fetch Main Tasks
         const tasksList = await getMainTasks()
         setMainTasks(tasksList)
 
-        // 2. Fetch Student Profile using server action
         const res = await getStudentAdminData(studentId)
         if (!res.success || !res.student) {
           throw new Error('Student profile not found')
@@ -61,24 +58,17 @@ export default function StudentHistoryPage() {
         setStudent(profileData)
         setPersonalTasks(profileData.personalTasks || [])
 
-
-
-        // 3. Generate past 7 dates (including today)
         const dateStrings: string[] = []
         for (let i = 6; i >= 0; i--) {
           const d = new Date()
           d.setDate(d.getDate() - i)
-          dateStrings.push(d.toLocaleDateString('en-CA')) // YYYY-MM-DD format
+          dateStrings.push(d.toLocaleDateString('en-CA'))
         }
 
-        // 4. Fetch task records for this student and these dates
         const taskLogs = await getStudentHistoryLast7Days(studentId, dateStrings)
 
-
-        // Build 7-day timeline
         const timeline: DayLog[] = taskLogs.map(log => {
           const task_data = { ...log.task_data }
-          // Fill missing task IDs as false
           tasksList.forEach(item => {
             if (task_data[item.id] === undefined) {
               task_data[item.id] = false
@@ -98,10 +88,8 @@ export default function StudentHistoryPage() {
           }
         })
 
-        // Order history newest date first
         setHistory(timeline.reverse())
 
-        // Expand the most recent day by default
         if (timeline.length > 0) {
           setExpandedDates({ [timeline[0].date]: true })
         }
@@ -120,110 +108,6 @@ export default function StudentHistoryPage() {
     }
   }, [studentId])
 
-  // (Expanded dates state moved to component)
-
-  // Handle toggling a personal task completion state
-  const handleTogglePersonalTask = async (taskId: string) => {
-    if (!studentId) return
-
-    const updatedTasks = personalTasks.map(t => 
-      t.id === taskId ? { ...t, completed: !t.completed } : t
-    )
-    setPersonalTasks(updatedTasks)
-
-    try {
-      await updateStudentPersonalTasks(studentId, updatedTasks)
-      
-      // Update local student object to sync
-      setStudent(prev => prev ? { ...prev, personalTasks: updatedTasks } : null)
-    } catch (err) {
-      console.error('Failed to update personal task completion:', err)
-    }
-  }
-
-  // Handle adding a personal task
-  const handleAddPersonalTask = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!studentId || !newPersonalTaskInput.trim()) return
-
-    const trimmedTask = newPersonalTaskInput.trim()
-    
-    // Avoid exact duplicate labels
-    if (personalTasks.some(t => t.label.toLowerCase() === trimmedTask.toLowerCase())) {
-      setNewPersonalTaskInput('')
-      return
-    }
-
-    const newTask: PersonalTask = {
-      id: 'ptask-' + Math.random().toString(36).substr(2, 9),
-      label: trimmedTask,
-      completed: false
-    }
-
-    const updatedTasks = [...personalTasks, newTask]
-    setPersonalTasks(updatedTasks)
-    setNewPersonalTaskInput('')
-
-    try {
-      await updateStudentPersonalTasks(studentId, updatedTasks)
-      
-      // Update local student object to sync
-      setStudent(prev => prev ? { ...prev, personalTasks: updatedTasks } : null)
-    } catch (err) {
-      console.error('Failed to save personal task:', err)
-    }
-  }
-
-  // Handle removing a personal task
-  const handleRemovePersonalTask = async (taskId: string) => {
-    if (!studentId) return
-
-    const updatedTasks = personalTasks.filter(t => t.id !== taskId)
-    setPersonalTasks(updatedTasks)
-
-    try {
-      await updateStudentPersonalTasks(studentId, updatedTasks)
-      
-      // Update local student object to sync
-      setStudent(prev => prev ? { ...prev, personalTasks: updatedTasks } : null)
-    } catch (err) {
-      console.error('Failed to remove personal task:', err)
-    }
-  }
-
-  // Handle toggling completion of a daily task for a specific date
-  const handleToggleDailyTask = async (date: string, taskId: string) => {
-    if (!studentId) return
-
-    const updatedHistory = await Promise.all(history.map(async (day) => {
-      if (day.date === date) {
-        const updatedTaskData = {
-          ...day.task_data,
-          [taskId]: !day.task_data[taskId]
-        }
-        
-        // Save to db/localStorage
-        await saveDailyTasks(studentId, date, updatedTaskData)
-
-        const completedCount = mainTasks.filter(item => updatedTaskData[item.id]).length
-        const totalCount = mainTasks.length
-        const percentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
-
-        return {
-          ...day,
-          task_data: updatedTaskData,
-          completedCount,
-          percentage
-        }
-      }
-      return day
-    }))
-
-    setHistory(updatedHistory)
-  }
-
-
-  // Calculate 7-day average completion percentage
   const averagePercentage = history.length > 0
     ? Math.round(history.reduce((sum, h) => sum + h.percentage, 0) / history.length)
     : 0
@@ -231,7 +115,6 @@ export default function StudentHistoryPage() {
   const studentBadge = getBadgeForPercentage(averagePercentage)
   const BadgeIcon = studentBadge.icon
 
-  // Helper to map dark badge classes to high-contrast light theme equivalents
   const getLightBadge = (badgeName: string) => {
     switch (badgeName) {
       case 'Legend': return { text: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-200', glow: 'shadow-sm border-rose-200' }
@@ -249,24 +132,34 @@ export default function StudentHistoryPage() {
   const todayLog = history.find(h => h.date === todayStr)
   const inactiveToday = !todayLog || todayLog.completedCount === 0
 
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-800">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
+          <span className="text-sm font-bold text-slate-600">Loading Student History...</span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="relative flex min-h-screen flex-col bg-slate-50 text-slate-800">
-      {/* Background Gradient Mesh */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-blue-50 via-white to-white pointer-events-none" />
 
-      {/* Main Container */}
       <main className="relative z-10 flex-1 mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 w-full space-y-6">
         
-        {/* Back navigation button */}
-        <div>
-          <button
-            onClick={() => router.push('/admin')}
-            className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900 transition cursor-pointer"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Student List
-          </button>
-        </div>
+        <ScrollReveal delay={50}>
+          <div>
+            <button
+              onClick={() => router.push('/admin')}
+              className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900 transition cursor-pointer"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Student List
+            </button>
+          </div>
+        </ScrollReveal>
 
         {student && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -275,117 +168,121 @@ export default function StudentHistoryPage() {
             <div className="lg:col-span-1 space-y-6">
               
               {/* Student Profile Card */}
-              <div className="bg-white border border-slate-200 p-6 sm:p-8 rounded-2xl shadow-sm space-y-6">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-500 text-white font-extrabold shadow-md shadow-blue-500/10 shrink-0">
-                    <GraduationCap className="h-6 w-6" />
-                  </div>
-                  <div className="space-y-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-xl font-bold text-slate-900 truncate">{student.name || 'Student'}</h2>
-                      {student.batch && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-50 border border-blue-100 text-blue-600">
-                          {student.batch}
-                        </span>
+              <ScrollReveal delay={100}>
+                <div className="bg-white border border-slate-200 p-6 sm:p-8 rounded-2xl shadow-sm space-y-6 card-hover-effect">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-500 text-white font-extrabold shadow-md shadow-blue-500/10 shrink-0">
+                      <GraduationCap className="h-6 w-6" />
+                    </div>
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-xl font-bold text-slate-900 truncate">{student.name || 'Student'}</h2>
+                        {student.batch && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-50 border border-blue-100 text-blue-600">
+                            {student.batch}
+                          </span>
+                        )}
+                      </div>
+                      <span className="flex items-center gap-1 text-xs text-slate-600 font-mono">
+                        <Phone className="h-3 w-3 text-blue-500" />
+                        {student.phone}
+                      </span>
+                      <span className="block text-[10px] text-slate-500 font-semibold">
+                        Registered: {new Date(student.created_at).toLocaleDateString()}
+                      </span>
+                      {inactiveToday && (
+                        <div className="mt-1">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-50 text-red-600 border border-red-100 animate-pulse shrink-0 whitespace-nowrap" title="Inactive Today">
+                            <AlertCircle className="h-2.5 w-2.5 shrink-0 text-red-500" />
+                            Inactive Today
+                          </span>
+                        </div>
                       )}
                     </div>
-                    <span className="flex items-center gap-1 text-xs text-slate-600 font-mono">
-                      <Phone className="h-3 w-3 text-blue-500" />
-                      {student.phone}
-                    </span>
-                    <span className="block text-[10px] text-slate-500 font-semibold">
-                      Registered: {new Date(student.created_at).toLocaleDateString()}
-                    </span>
-                    {inactiveToday && (
-                      <div className="mt-1">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-50 text-red-600 border border-red-100 animate-pulse shrink-0 whitespace-nowrap" title="Inactive Today">
-                          <AlertCircle className="h-2.5 w-2.5 shrink-0 text-red-500" />
-                          Inactive Today
+                  </div>
+
+                  {/* 7-Day Performance Metric & Badge */}
+                  <div className="flex items-center gap-4 bg-blue-50/60 border border-blue-100 p-4 rounded-xl">
+                    <div className={`p-2.5 rounded-lg border bg-white shrink-0 ${lightBadge.text} ${lightBadge.border} ${lightBadge.glow}`}>
+                      <BadgeIcon className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                        7-Day Rank Level
+                      </span>
+                      <span className="flex items-center gap-2 mt-0.5">
+                        <span className={`text-base font-extrabold ${lightBadge.text}`}>
+                          {studentBadge.name}
                         </span>
+                        <span className={`text-[9px] ${lightBadge.bg} border ${lightBadge.border} px-1.5 py-0.5 rounded ${lightBadge.text} font-bold`}>
+                          {studentBadge.malName}
+                        </span>
+                      </span>
+                      <span className="block text-[11px] text-slate-600 font-semibold mt-0.5">
+                        {averagePercentage}% Avg Completion
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </ScrollReveal>
+
+              {/* Personal Tasks Card for Admin */}
+              <ScrollReveal delay={150}>
+                <div className="bg-white border border-slate-200 p-6 sm:p-8 rounded-2xl shadow-sm space-y-4 card-hover-effect">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                      <CheckCircle2 className="h-4.5 w-4.5 text-blue-600" />
+                      Personal Tasks
+                    </h3>
+                    <span className="text-[10px] text-slate-550 font-mono font-semibold">
+                      {personalTasks.filter(t => t.completed).length}/{personalTasks.length} Done
+                    </span>
+                  </div>
+
+                  {/* Tasks List */}
+                  <div className="space-y-3">
+                    {personalTasks.length > 0 ? (
+                      <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                        {personalTasks.map((task) => (
+                          <div 
+                            key={task.id}
+                            className={`flex items-center justify-between p-2.5 rounded-xl border transition-all duration-150 ${
+                              task.completed 
+                                ? 'bg-blue-50/60 border-blue-200 text-blue-900' 
+                                : 'bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-800'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1 select-none">
+                              <div className={`h-4.5 w-4.5 rounded border flex items-center justify-center transition-all ${
+                                task.completed 
+                                  ? 'bg-blue-600 border-blue-600 text-white' 
+                                  : 'border-slate-300 bg-white'
+                              }`}>
+                                {task.completed && (
+                                  <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </div>
+                              <span className={`text-xs font-semibold truncate ${
+                                task.completed ? 'text-slate-500 line-through font-semibold' : 'text-slate-800'
+                              }`}>
+                                {task.label}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 space-y-1">
+                        <p className="text-xs text-slate-500 italic">
+                          No personal tasks added by the student yet.
+                        </p>
                       </div>
                     )}
                   </div>
                 </div>
-
-                {/* 7-Day Performance Metric & Badge */}
-                <div className="flex items-center gap-4 bg-blue-50/60 border border-blue-100 p-4 rounded-xl">
-                  <div className={`p-2.5 rounded-lg border bg-white shrink-0 ${lightBadge.text} ${lightBadge.border} ${lightBadge.glow}`}>
-                    <BadgeIcon className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                      7-Day Rank Level
-                    </span>
-                    <span className="flex items-center gap-2 mt-0.5">
-                      <span className={`text-base font-extrabold ${lightBadge.text}`}>
-                        {studentBadge.name}
-                      </span>
-                      <span className={`text-[9px] ${lightBadge.bg} border ${lightBadge.border} px-1.5 py-0.5 rounded ${lightBadge.text} font-bold`}>
-                        {studentBadge.malName}
-                      </span>
-                    </span>
-                    <span className="block text-[11px] text-slate-600 font-semibold mt-0.5">
-                      {averagePercentage}% Avg Completion
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Personal Tasks Card for Admin */}
-              <div className="bg-white border border-slate-200 p-6 sm:p-8 rounded-2xl shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                    <CheckCircle2 className="h-4.5 w-4.5 text-blue-600" />
-                    Personal Tasks
-                  </h3>
-                  <span className="text-[10px] text-slate-550 font-mono font-semibold">
-                    {personalTasks.filter(t => t.completed).length}/{personalTasks.length} Done
-                  </span>
-                </div>
-
-                {/* Tasks List */}
-                <div className="space-y-3">
-                  {personalTasks.length > 0 ? (
-                    <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
-                      {personalTasks.map((task) => (
-                        <div 
-                          key={task.id}
-                          className={`flex items-center justify-between p-2.5 rounded-xl border transition-all duration-150 ${
-                            task.completed 
-                              ? 'bg-blue-50/60 border-blue-200 text-blue-900' 
-                              : 'bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-800'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1 select-none">
-                            <div className={`h-4.5 w-4.5 rounded border flex items-center justify-center transition-all ${
-                              task.completed 
-                                ? 'bg-blue-600 border-blue-600 text-white' 
-                                : 'border-slate-300 bg-white'
-                            }`}>
-                              {task.completed && (
-                                <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                              )}
-                            </div>
-                            <span className={`text-xs font-semibold truncate ${
-                              task.completed ? 'text-slate-500 line-through font-semibold' : 'text-slate-800'
-                            }`}>
-                              {task.label}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-4 space-y-1">
-                      <p className="text-xs text-slate-500 italic">
-                        No personal tasks added by the student yet.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
+              </ScrollReveal>
 
             </div>
 
