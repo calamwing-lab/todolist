@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getCurrentUser, logout, getLatestVideo, getDailyTasks, saveDailyTasks, getStudentHistoryLast7Days, updateStudentPersonalTasks, getLeaderboard, LeaderboardEntry, PersonalTask, getMainTasks, MainTask, getStudentById, markNotificationsAsRead, getVideos } from '@/utils/db'
+import { getCurrentUser, getCurrentUserAsync, logout, getLatestVideo, getDailyTasks, saveDailyTasks, getStudentHistoryLast7Days, updateStudentPersonalTasks, getLeaderboard, LeaderboardEntry, PersonalTask, getMainTasks, MainTask, getStudentById, markNotificationsAsRead, getVideos } from '@/utils/db'
+import { safeSetItem } from '@/utils/safe-storage'
 import { 
   LogOut, GraduationCap, Bell,
   Play, Calendar, BookOpen, AlertCircle, Loader2, Sparkles, Trophy, BarChart2,
@@ -88,7 +89,10 @@ export default function StudentPage() {
       for (let i = 6; i >= 0; i--) {
         const d = new Date()
         d.setDate(d.getDate() - i)
-        dateStrings.push(d.toLocaleDateString('en-CA'))
+        const dStr = d.toLocaleDateString('en-CA')
+        if (dStr >= '2026-09-07') {
+          dateStrings.push(dStr)
+        }
       }
 
       const historyLogs = await getStudentHistoryLast7Days(uid, dateStrings)
@@ -117,7 +121,8 @@ export default function StudentPage() {
         }
       })
 
-      const avgPct = Math.round(totalPercentageSum / 7)
+      const count = dailyArray.length || 1
+      const avgPct = Math.round(totalPercentageSum / count)
       setWeeklyAverage(avgPct)
       setDailyStats(dailyArray)
       setTimeout(() => setIsCalculated(true), 100)
@@ -130,7 +135,10 @@ export default function StudentPage() {
   useEffect(() => {
     const initializeDashboard = async () => {
       try {
-        const user = getCurrentUser()
+        let user = getCurrentUser()
+        if (!user) {
+          user = await getCurrentUserAsync()
+        }
         if (!user || user.role !== 'student') {
           router.replace('/login')
           return
@@ -152,7 +160,7 @@ export default function StudentPage() {
         let lastRead = user.last_notification_read_at
         if (profile) {
           lastRead = profile.last_notification_read_at
-          localStorage.setItem('dt_session', JSON.stringify(profile))
+          safeSetItem('dt_session', JSON.stringify(profile))
         }
 
         const vids = await getVideos()
@@ -462,7 +470,7 @@ export default function StudentPage() {
       </header>
 
       {/* Main Content */}
-      <main className="relative z-10 flex-1 mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 w-full space-y-6">
+      <main className="relative z-10 flex-1 mx-auto max-w-7xl px-2.5 py-5 sm:px-6 sm:py-8 w-full space-y-6">
         
         {/* Language Day Alert */}
         {new Date().getDay() === 6 && (
@@ -486,10 +494,10 @@ export default function StudentPage() {
           </ScrollReveal>
         )}
 
-        <div className="flex border-b border-blue-100 mb-8 gap-2 sm:gap-4 overflow-x-auto whitespace-nowrap scrollbar-none px-1">
+        <div className="grid grid-cols-2 border-b border-blue-100 mb-6 sm:mb-8">
           <button
             onClick={() => setActiveTab('dashboard')}
-            className={`flex items-center gap-2 pb-4 pt-2 border-b-2 text-sm font-bold transition-all px-2 cursor-pointer shrink-0 ${
+            className={`flex items-center justify-center gap-1.5 sm:gap-2 pb-3.5 pt-2 border-b-2 text-xs sm:text-sm font-bold transition-all px-1 sm:px-3 cursor-pointer ${
               activeTab === 'dashboard'
                 ? 'border-blue-600 text-blue-700'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -500,14 +508,15 @@ export default function StudentPage() {
           </button>
           <button
             onClick={() => setActiveTab('report')}
-            className={`flex items-center gap-2 pb-4 pt-2 border-b-2 text-sm font-bold transition-all px-2 cursor-pointer shrink-0 ${
+            className={`flex items-center justify-center gap-1.5 sm:gap-2 pb-3.5 pt-2 border-b-2 text-xs sm:text-sm font-bold transition-all px-1 sm:px-3 cursor-pointer ${
               activeTab === 'report'
                 ? 'border-blue-600 text-blue-700'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
             <BarChart2 className="h-4 w-4 shrink-0" />
-            <span>My Progress Report</span>
+            <span className="hidden sm:inline">My Progress Report</span>
+            <span className="sm:hidden">Progress Report</span>
           </button>
         </div>
 
@@ -664,10 +673,10 @@ export default function StudentPage() {
                         >
                           <div 
                             onClick={() => handleTogglePersonalTask(task.id)}
-                            className="flex items-center gap-2.5 cursor-pointer min-w-0 flex-1 select-none"
+                            className="flex items-start sm:items-center gap-2.5 cursor-pointer min-w-0 flex-1 select-none mr-2"
                           >
                             <div
-                              className={`relative flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] border-2 transition-all duration-200 ease-in-out focus:outline-none ${
+                              className={`relative flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] border-2 transition-all duration-200 ease-in-out mt-0.5 sm:mt-0 focus:outline-none ${
                                 task.completed
                                   ? 'bg-blue-600 border-blue-600 shadow-sm shadow-blue-100'
                                   : 'border-slate-200 bg-white hover:border-blue-200'
@@ -685,7 +694,7 @@ export default function StudentPage() {
                                 </svg>
                               )}
                             </div>
-                            <span className={`text-xs font-bold truncate transition-all duration-200 ${
+                            <span className={`text-xs font-bold break-words whitespace-normal leading-snug transition-all duration-200 ${
                               task.completed ? 'text-slate-400 line-through' : 'text-slate-900'
                             }`}>
                               {task.label}
@@ -801,12 +810,12 @@ export default function StudentPage() {
           {/* Right Column: Daily Checklist */}
           <div className="lg:col-span-2 space-y-6">
             <ScrollReveal delay={150}>
-              <div className="bg-white border border-slate-100 p-6 sm:p-8 rounded-2xl shadow-sm space-y-6 card-hover-effect">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+              <div className="bg-white border border-slate-100 p-4 sm:p-8 rounded-2xl shadow-sm space-y-6 card-hover-effect">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <Calendar className="h-5 w-5 text-blue-600" />
-                      <h2 className="text-lg font-bold text-slate-900">
+                      <h2 className="text-base sm:text-lg font-bold text-slate-900">
                         Today's Activity Tracker
                       </h2>
                     </div>
@@ -815,7 +824,7 @@ export default function StudentPage() {
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
                     {saving && (
                       <span className="text-xs text-slate-600 font-mono font-bold flex items-center gap-1.5">
                         <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />
@@ -828,9 +837,9 @@ export default function StudentPage() {
                       </span>
                     )}
                     
-                    <div className="bg-slate-50 border border-slate-100 px-4 py-2 rounded-xl text-right">
-                      <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider block">Today's Progress</span>
-                      <span className="text-lg font-black text-blue-600 font-mono">
+                    <div className="bg-slate-50 border border-slate-100 px-3.5 py-2 rounded-xl flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
+                      <span className="text-[10px] sm:text-xs text-slate-600 font-bold uppercase tracking-wider block">Today's Progress</span>
+                      <span className="text-base sm:text-lg font-black text-blue-600 font-mono">
                         {completionPercentage}%
                       </span>
                     </div>
@@ -853,15 +862,15 @@ export default function StudentPage() {
                       <div
                         key={task.id}
                         onClick={() => handleToggleTask(task.id)}
-                        className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer select-none transition-all duration-200 ${
+                        className={`flex items-center justify-between p-3.5 sm:p-4 rounded-xl border cursor-pointer select-none transition-all duration-200 ${
                           isChecked
                             ? 'bg-blue-50/70 border-blue-200 text-blue-950 shadow-sm'
                             : 'bg-white border-slate-100 text-slate-800 hover:border-blue-200 hover:bg-slate-50/50'
                         }`}
                       >
-                        <div className="flex items-center gap-3.5 min-w-0">
+                        <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1 mr-2">
                           <div
-                            className={`relative flex h-5 w-5 shrink-0 items-center justify-center rounded-lg border-2 transition-all duration-200 ${
+                            className={`relative flex h-5 w-5 shrink-0 items-center justify-center rounded-lg border-2 transition-all duration-200 mt-0.5 sm:mt-0 ${
                               isChecked
                                 ? 'bg-blue-600 border-blue-600 shadow-sm shadow-blue-200'
                                 : 'border-slate-300 bg-white'
@@ -872,7 +881,7 @@ export default function StudentPage() {
                             )}
                           </div>
 
-                          <span className={`text-xs sm:text-sm font-bold truncate transition-all ${
+                          <span className={`text-xs sm:text-sm font-bold break-words whitespace-normal leading-snug transition-all ${
                             isChecked ? 'text-blue-950' : 'text-slate-800'
                           }`}>
                             {task.label}
@@ -891,52 +900,86 @@ export default function StudentPage() {
                   })}
                 </div>
 
-                {/* Class Video Section */}
-                {latestVideo && (
+                {/* Class Video Section - All Added Videos */}
+                {videos.length > 0 && (
                   <div 
                     id="video-player-section" 
                     className="pt-6 border-t border-slate-100 space-y-4"
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
                       <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                         <Play className="h-4 w-4 text-blue-600" />
-                        Class Video Tutorial
+                        Class Video Tutorials
                       </h3>
                       <span className="text-[10px] text-blue-600 font-bold bg-blue-50 border border-blue-100 px-2.5 py-0.5 rounded-full">
-                        Latest Upload
+                        {videos.length} {videos.length === 1 ? 'Video' : 'Videos'} Added
                       </span>
                     </div>
 
-                    {embedUrl ? (
-                      <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-slate-900 shadow-md border border-slate-200">
-                        <iframe
-                          src={embedUrl}
-                          title="Class Video Tutorial"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                          className="h-full w-full border-0"
-                        />
-                      </div>
-                    ) : (
-                      <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center space-y-2">
-                        <p className="text-xs text-slate-600 font-semibold">Video URL is available below:</p>
-                        <a
-                          href={latestVideo.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:underline"
-                        >
-                          <span>Open Video Link</span>
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
-                      </div>
-                    )}
+                    <div className="space-y-5">
+                      {videos.map((vid, idx) => {
+                        const vidEmbed = getYoutubeEmbedUrl(vid.url)
+                        const isLatest = idx === 0
+                        return (
+                          <div 
+                            key={vid.id || idx}
+                            className="p-3.5 sm:p-5 bg-slate-50/70 border border-slate-200/80 rounded-2xl space-y-3"
+                          >
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white text-[10px] font-bold">
+                                  {idx + 1}
+                                </span>
+                                <span className="text-xs font-bold text-slate-800 truncate">
+                                  Class Video {videos.length > 1 ? `#${idx + 1}` : ''}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {isLatest && (
+                                  <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full uppercase tracking-tight">
+                                    Latest Upload
+                                  </span>
+                                )}
+                                <span className="text-[10px] text-slate-500 font-mono font-medium">
+                                  {new Date(vid.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                </span>
+                              </div>
+                            </div>
 
-                    {latestVideo.description && (
-                      <p className="text-xs text-slate-600 font-medium leading-relaxed bg-slate-50 border border-slate-100 p-3.5 rounded-xl">
-                        {latestVideo.description}
-                      </p>
-                    )}
+                            {vidEmbed ? (
+                              <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-slate-900 shadow-sm border border-slate-200">
+                                <iframe
+                                  src={vidEmbed}
+                                  title={`Class Video ${idx + 1}`}
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                  allowFullScreen
+                                  className="h-full w-full border-0"
+                                />
+                              </div>
+                            ) : (
+                              <div className="p-3 bg-white border border-slate-200 rounded-xl text-center space-y-1.5">
+                                <p className="text-xs text-slate-600 font-semibold">Video URL is available below:</p>
+                                <a
+                                  href={vid.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:underline"
+                                >
+                                  <span>Open Video Link</span>
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                </a>
+                              </div>
+                            )}
+
+                            {vid.description && (
+                              <p className="text-xs text-slate-600 font-medium leading-relaxed bg-white border border-slate-100 p-3 rounded-xl">
+                                {vid.description}
+                              </p>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
                 )}
 

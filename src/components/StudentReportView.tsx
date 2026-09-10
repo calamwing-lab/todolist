@@ -107,51 +107,42 @@ function AnimatedPerformanceDonut({
           <circle
             cx="50" cy="50" r="38"
             stroke="#10b981"
-            strokeWidth={hoveredSegment === 'high' ? 18 : 14}
+            strokeWidth={hoveredSegment === 'high' ? 17 : 14}
             fill="none"
             strokeDasharray={`${highDash} ${circumference}`}
             strokeDashoffset={highOffset}
             strokeLinecap="round"
-            className="transition-all duration-300 cursor-pointer donut-segment-hover"
+            className="transition-all duration-200 cursor-pointer"
             onMouseEnter={() => setHoveredSegment('high')}
             onMouseLeave={() => setHoveredSegment(null)}
-            style={{
-              filter: hoveredSegment === 'high' ? 'drop-shadow(0 0 10px rgba(16, 185, 129, 0.8))' : 'none'
-            }}
           />
 
           {/* Moderate segment (Orange/Amber) */}
           <circle
             cx="50" cy="50" r="38"
             stroke="#f59e0b"
-            strokeWidth={hoveredSegment === 'mod' ? 18 : 14}
+            strokeWidth={hoveredSegment === 'mod' ? 17 : 14}
             fill="none"
             strokeDasharray={`${modDash} ${circumference}`}
             strokeDashoffset={modOffset}
             strokeLinecap="round"
-            className="transition-all duration-300 cursor-pointer donut-segment-hover"
+            className="transition-all duration-200 cursor-pointer"
             onMouseEnter={() => setHoveredSegment('mod')}
             onMouseLeave={() => setHoveredSegment(null)}
-            style={{
-              filter: hoveredSegment === 'mod' ? 'drop-shadow(0 0 10px rgba(245, 158, 11, 0.8))' : 'none'
-            }}
           />
 
           {/* Low segment (Rose/Red) */}
           <circle
             cx="50" cy="50" r="38"
             stroke="#f43f5e"
-            strokeWidth={hoveredSegment === 'low' ? 18 : 14}
+            strokeWidth={hoveredSegment === 'low' ? 17 : 14}
             fill="none"
             strokeDasharray={`${lowDash} ${circumference}`}
             strokeDashoffset={lowOffset}
             strokeLinecap="round"
-            className="transition-all duration-300 cursor-pointer donut-segment-hover"
+            className="transition-all duration-200 cursor-pointer"
             onMouseEnter={() => setHoveredSegment('low')}
             onMouseLeave={() => setHoveredSegment(null)}
-            style={{
-              filter: hoveredSegment === 'low' ? 'drop-shadow(0 0 10px rgba(244, 63, 94, 0.8))' : 'none'
-            }}
           />
         </svg>
 
@@ -241,14 +232,20 @@ export function StudentReportView({ userId }: { userId: string }) {
         const tasksList = await getMainTasks()
         setMainTasks(tasksList)
 
+        const TRACKING_START_DATE = '2026-09-07'
+
         const dateStrings: string[] = []
-        for (let i = 6; i >= 0; i--) {
-          const d = new Date()
-          d.setDate(d.getDate() - i)
-          dateStrings.push(d.toLocaleDateString('en-CA'))
+        const curr = new Date()
+        const cutoffObj = new Date(TRACKING_START_DATE + 'T00:00:00')
+        while (curr >= cutoffObj) {
+          dateStrings.push(curr.toLocaleDateString('en-CA'))
+          curr.setDate(curr.getDate() - 1)
+        }
+        if (dateStrings.length === 0) {
+          dateStrings.push(TRACKING_START_DATE)
         }
 
-        const allTaskLogs = await getStudentAllTasks(userId)
+        const allTaskLogs = (await getStudentAllTasks(userId)).filter(l => l.date >= TRACKING_START_DATE)
 
         const computeLogStats = (log: any, date: string): DayLog => {
           const task_data = log && log.task_data ? { ...log.task_data } : {}
@@ -264,7 +261,10 @@ export function StudentReportView({ userId }: { userId: string }) {
         }
 
         const allLoggedDatesSet = new Set(allTaskLogs.map(l => l.date))
-        const combinedDates = Array.from(new Set([...dateStrings, ...allLoggedDatesSet])).sort().reverse()
+        const combinedDates = Array.from(new Set([...dateStrings, ...allLoggedDatesSet]))
+          .filter(d => d >= TRACKING_START_DATE)
+          .sort()
+          .reverse() // latest to oldest for Day-by-Day history
 
         const fullTimeline = combinedDates.map(date => {
           const log = allTaskLogs.find(l => l.date === date)
@@ -273,12 +273,15 @@ export function StudentReportView({ userId }: { userId: string }) {
 
         setHistory(fullTimeline)
 
-        const chartTimeline = dateStrings.map(date => {
-          const log = allTaskLogs.find(l => l.date === date)
-          return computeLogStats(log, date)
-        })
+        // chartTimeline in chronological order (07 Sep onwards)
+        const chartTimeline = [...combinedDates]
+          .sort() // chronological: earliest to latest
+          .map(date => {
+            const log = allTaskLogs.find(l => l.date === date)
+            return computeLogStats(log, date)
+          })
         
-        setChartHistory(chartTimeline.reverse())
+        setChartHistory(chartTimeline)
 
         if (fullTimeline.length > 0) {
           setExpandedDates({ [fullTimeline[0].date]: true })
@@ -314,9 +317,14 @@ export function StudentReportView({ userId }: { userId: string }) {
   const handleToggleDailyTask = async (date: string, taskId: string) => {
     if (!userId) return
 
-    const todayStr = new Date().toLocaleDateString('en-CA')
-    if (date !== todayStr) {
-      // Past dates (yesterday and earlier) are locked and read-only!
+    const todayObj = new Date()
+    const todayStr = todayObj.toLocaleDateString('en-CA')
+    const yesterdayObj = new Date()
+    yesterdayObj.setDate(yesterdayObj.getDate() - 1)
+    const yesterdayStr = yesterdayObj.toLocaleDateString('en-CA')
+
+    // 2 days editable: Today and Yesterday
+    if (date !== todayStr && date !== yesterdayStr) {
       return
     }
 
@@ -437,15 +445,16 @@ export function StudentReportView({ userId }: { userId: string }) {
   const modPct = totalDays > 0 ? Math.round((modDays / totalDays) * 100) : 0
   const lowPct = totalDays > 0 ? Math.round((lowDays / totalDays) * 100) : 0
 
-  const chartData7Days = useMemo(() => {
-    return [...chartHistory].reverse().map(day => {
+  const chartData = useMemo(() => {
+    return chartHistory.map(day => {
       const dateObj = new Date(day.date + 'T00:00:00')
       const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' })
-      const formattedDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      const shortDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
       return {
         day: dayName,
         dateStr: day.date,
-        formattedDate,
+        shortDate,
+        formattedDate: shortDate,
         percentage: day.percentage
       }
     })
@@ -454,28 +463,50 @@ export function StudentReportView({ userId }: { userId: string }) {
   const svgGraph = useMemo(() => {
     const width = 600
     const height = 180
-    const paddingX = 40
-    const paddingY = 30
+    const paddingLeft = 45
+    const paddingRight = 30
+    const paddingTop = 18
+    const paddingBottom = 22
 
-    if (chartData7Days.length === 0) return { lineD: '', areaD: '', nodes: [] }
+    if (chartData.length === 0) return { lineD: '', areaD: '', nodes: [] }
 
-    const nodes = chartData7Days.map((d, i) => {
-      const x = paddingX + (i / (chartData7Days.length - 1 || 1)) * (width - 2 * paddingX)
-      const y = height - paddingY - (d.percentage / 100) * (height - 2 * paddingY)
+    const nodes = chartData.map((d, i) => {
+      const x = chartData.length === 1
+        ? width / 2
+        : paddingLeft + (i / (chartData.length - 1)) * (width - paddingLeft - paddingRight)
+      const graphH = height - paddingTop - paddingBottom
+      const y = paddingTop + (1 - d.percentage / 100) * graphH
       return { ...d, x, y }
     })
 
-    let lineD = `M ${nodes[0].x} ${nodes[0].y}`
+    if (nodes.length === 1) {
+      const n = nodes[0]
+      const lineD = `M ${paddingLeft} ${n.y.toFixed(1)} L ${width - paddingRight} ${n.y.toFixed(1)}`
+      const areaD = `M ${paddingLeft} ${n.y.toFixed(1)} L ${width - paddingRight} ${n.y.toFixed(1)} L ${width - paddingRight} ${height - paddingBottom} L ${paddingLeft} ${height - paddingBottom} Z`
+      return { lineD, areaD, nodes }
+    }
+
+    let lineD = `M ${nodes[0].x.toFixed(1)} ${nodes[0].y.toFixed(1)}`
     for (let i = 0; i < nodes.length - 1; i++) {
       const p0 = nodes[i]
       const p1 = nodes[i + 1]
-      const mx = (p0.x + p1.x) / 2
-      lineD += ` C ${mx} ${p0.y}, ${mx} ${p1.y}, ${p1.x} ${p1.y}`
+      const prev = i > 0 ? nodes[i - 1] : p0
+      const next = i < nodes.length - 2 ? nodes[i + 2] : p1
+
+      const cp1x = p0.x + (p1.x - prev.x) * 0.25
+      let cp1y = p0.y + (p1.y - prev.y) * 0.25
+      const cp2x = p1.x - (next.x - p0.x) * 0.25
+      let cp2y = p1.y - (next.y - p0.y) * 0.25
+
+      cp1y = Math.max(paddingTop, Math.min(height - paddingBottom, cp1y))
+      cp2y = Math.max(paddingTop, Math.min(height - paddingBottom, cp2y))
+
+      lineD += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p1.x.toFixed(1)} ${p1.y.toFixed(1)}`
     }
 
-    const areaD = `${lineD} L ${nodes[nodes.length - 1].x} ${height - paddingY} L ${nodes[0].x} ${height - paddingY} Z`
+    const areaD = `${lineD} L ${nodes[nodes.length - 1].x.toFixed(1)} ${height - paddingBottom} L ${nodes[0].x.toFixed(1)} ${height - paddingBottom} Z`
     return { lineD, areaD, nodes }
-  }, [chartData7Days])
+  }, [chartData])
 
   const displayedHistory = history.slice(0, displayLimit)
 
@@ -576,36 +607,44 @@ export function StudentReportView({ userId }: { userId: string }) {
 
         {/* Smooth Curved Line Graph Card */}
         <ScrollReveal delay={300} className="lg:col-span-2">
-          <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-5 flex flex-col justify-between card-hover-effect h-full">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 gap-2">
+          <div className="bg-white border border-slate-200 p-4 sm:p-6 rounded-2xl shadow-sm space-y-3 sm:space-y-4 flex flex-col justify-start lg:justify-between card-hover-effect h-full">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 sm:pb-3 gap-2 flex-wrap">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                   <TrendingUp className="h-4.5 w-4.5 text-blue-600" />
                   Completion Performance
                 </h3>
-                <p className="text-[11px] text-slate-500 font-medium mt-0.5">7-Day Smooth Trajectory Graph</p>
+                <p className="text-[11px] text-slate-500 font-medium mt-0.5">Performance Trajectory (From 07 Sep 2026)</p>
               </div>
-              <span className="text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200 px-3 py-1 rounded-full">
-                Weekly Trend
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-3 py-1 rounded-full">
+                  Daily Trend
+                </span>
+              </div>
             </div>
 
             {/* SVG Smooth Curve Area Chart */}
-            <div className="relative pt-4">
-              <svg viewBox="0 0 600 180" className="w-full h-44 overflow-visible">
+            <div className="relative w-full">
+              <svg viewBox="0 0 600 180" className="w-full h-auto block overflow-visible">
                 <defs>
                   <linearGradient id="blueAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#2563eb" stopOpacity="0.35" />
-                    <stop offset="100%" stopColor="#2563eb" stopOpacity="0.0" />
+                    <stop offset="0%" stopColor="#2563eb" stopOpacity="0.28" />
+                    <stop offset="60%" stopColor="#06b6d4" stopOpacity="0.08" />
+                    <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.0" />
+                  </linearGradient>
+                  <linearGradient id="lineStrokeGradient" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#2563eb" />
+                    <stop offset="50%" stopColor="#0284c7" />
+                    <stop offset="100%" stopColor="#06b6d4" />
                   </linearGradient>
                 </defs>
 
                 {[100, 75, 50, 25, 0].map(pct => {
-                  const y = 30 + ((100 - pct) / 100) * 120
+                  const y = 18 + ((100 - pct) / 100) * 140
                   return (
                     <g key={pct}>
-                      <line x1="35" y1={y} x2="565" y2={y} stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3,3" />
-                      <text x="30" y={y + 3} textAnchor="end" fill="#94a3b8" fontSize="9" fontWeight="bold">
+                      <line x1="42" y1={y} x2="575" y2={y} stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3,3" />
+                      <text x="36" y={y + 3.5} textAnchor="end" fill="#94a3b8" fontSize="10" fontWeight="bold">
                         {pct}%
                       </text>
                     </g>
@@ -625,7 +664,7 @@ export function StudentReportView({ userId }: { userId: string }) {
                   <path 
                     d={svgGraph.lineD} 
                     fill="none" 
-                    stroke="#2563eb" 
+                    stroke="url(#lineStrokeGradient)" 
                     strokeWidth="3.5" 
                     strokeLinecap="round" 
                     strokeLinejoin="round" 
@@ -635,21 +674,44 @@ export function StudentReportView({ userId }: { userId: string }) {
                   />
                 )}
 
-                {isCalculated && svgGraph.nodes.map((node, i) => (
-                  <g key={i} className="group cursor-pointer">
-                    <circle
-                      cx={node.x}
-                      cy={node.y}
-                      r="6"
-                      className="fill-white stroke-blue-600 stroke-[3] graph-hover-node shadow-lg"
-                      onMouseEnter={() => setHoveredNode(node)}
-                      onMouseLeave={() => setHoveredNode(null)}
-                    />
-                    <text x={node.x} y="172" textAnchor="middle" fill="#64748b" fontSize="10" fontWeight="bold">
-                      {node.day}
-                    </text>
-                  </g>
-                ))}
+                {isCalculated && svgGraph.nodes.map((node, i) => {
+                  const todayStr = new Date().toLocaleDateString('en-CA')
+                  const yesterdayObj = new Date()
+                  yesterdayObj.setDate(yesterdayObj.getDate() - 1)
+                  const yesterdayStr = yesterdayObj.toLocaleDateString('en-CA')
+
+                  const isToday = node.dateStr === todayStr
+                  const isYesterday = node.dateStr === yesterdayStr
+                  return (
+                    <g key={i} className="group cursor-pointer">
+                      {isToday && (
+                        <circle cx={node.x} cy={node.y} r="11" className="fill-blue-500/20 animate-ping" />
+                      )}
+                      <circle
+                        cx={node.x}
+                        cy={node.y}
+                        r="6"
+                        className={`fill-white stroke-[3] transition-transform duration-200 group-hover:scale-125 ${
+                          isToday ? 'stroke-blue-600' : isYesterday ? 'stroke-emerald-600' : 'stroke-sky-600'
+                        }`}
+                        style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.12))' }}
+                        onMouseEnter={() => setHoveredNode(node)}
+                        onMouseLeave={() => setHoveredNode(null)}
+                      />
+                      <text
+                        x={node.x}
+                        y={node.y - 8}
+                        textAnchor="middle"
+                        fill={node.percentage >= 80 ? '#059669' : node.percentage >= 50 ? '#0284c7' : node.percentage > 0 ? '#d97706' : '#94a3b8'}
+                        fontSize="10"
+                        fontWeight="bold"
+                        className="font-mono select-none pointer-events-none"
+                      >
+                        {node.percentage}%
+                      </text>
+                    </g>
+                  )
+                })}
               </svg>
 
               {hoveredNode && (
@@ -667,22 +729,60 @@ export function StudentReportView({ userId }: { userId: string }) {
               )}
             </div>
 
-            <div className="grid grid-cols-4 gap-2 pt-3 border-t border-slate-100 text-center">
-              <div>
-                <span className="block text-[10px] font-bold text-slate-400 uppercase">Avg Score</span>
-                <span className="text-sm font-extrabold text-slate-900">{avgPercentage}%</span>
+            {/* Responsive Day Badges Row */}
+            <div className="grid grid-flow-col auto-cols-fr gap-1.5 pt-3 border-t border-slate-100">
+              {chartData.map((d) => {
+                const todayStr = new Date().toLocaleDateString('en-CA')
+                const yesterdayObj = new Date()
+                yesterdayObj.setDate(yesterdayObj.getDate() - 1)
+                const yesterdayStr = yesterdayObj.toLocaleDateString('en-CA')
+
+                const isToday = d.dateStr === todayStr
+                const isYesterday = d.dateStr === yesterdayStr
+                return (
+                  <div 
+                    key={d.dateStr}
+                    className={`flex flex-col items-center py-2 px-1 rounded-xl transition-all ${
+                      isToday 
+                        ? 'bg-blue-50 border border-blue-200 shadow-sm ring-1 ring-blue-100' 
+                        : isYesterday
+                        ? 'bg-emerald-50/60 border border-emerald-200'
+                        : 'bg-slate-50 border border-slate-100'
+                    }`}
+                  >
+                    <span className={`text-[11px] font-bold leading-tight ${isToday ? 'text-blue-700' : isYesterday ? 'text-emerald-700' : 'text-slate-700'}`}>
+                      {d.day}
+                    </span>
+                    <span className="text-[9px] text-slate-400 font-medium">
+                      {d.shortDate}
+                    </span>
+                    <span className={`text-[11px] font-extrabold mt-1 font-mono ${
+                      d.percentage >= 80 ? 'text-emerald-600' : d.percentage >= 50 ? 'text-blue-600' : d.percentage > 0 ? 'text-amber-600' : 'text-slate-400'
+                    }`}>
+                      {d.percentage}%
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Performance Metrics Row */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3 border-t border-slate-100 text-center">
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5">
+                <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avg Score</span>
+                <span className="text-base font-extrabold text-slate-900 font-mono">{avgPercentage}%</span>
               </div>
-              <div>
-                <span className="block text-[10px] font-bold text-slate-400 uppercase">Active Days</span>
-                <span className="text-sm font-extrabold text-emerald-600">{activeDays}</span>
+              <div className="bg-emerald-50/50 border border-emerald-100/80 rounded-xl p-2.5">
+                <span className="block text-[10px] font-bold text-emerald-600/80 uppercase tracking-wider">Active Days</span>
+                <span className="text-base font-extrabold text-emerald-700 font-mono">{activeDays}</span>
               </div>
-              <div>
-                <span className="block text-[10px] font-bold text-slate-400 uppercase">Total Days</span>
-                <span className="text-sm font-extrabold text-slate-900">{totalDays}</span>
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5">
+                <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tracked Days</span>
+                <span className="text-base font-extrabold text-slate-900 font-mono">{totalDays}</span>
               </div>
-              <div>
-                <span className="block text-[10px] font-bold text-slate-400 uppercase">Best Score</span>
-                <span className="text-sm font-extrabold text-amber-600">{bestDay ? bestDay.percentage + '%' : 'N/A'}</span>
+              <div className="bg-amber-50/50 border border-amber-100/80 rounded-xl p-2.5">
+                <span className="block text-[10px] font-bold text-amber-600/80 uppercase tracking-wider">Best Score</span>
+                <span className="text-base font-extrabold text-amber-600 font-mono">{bestDay ? bestDay.percentage + '%' : 'N/A'}</span>
               </div>
             </div>
           </div>
@@ -784,25 +884,31 @@ export function StudentReportView({ userId }: { userId: string }) {
                   const perf = getPerformanceIndicator(log)
                   const todayStr = new Date().toLocaleDateString('en-CA')
                   const isToday = cell.dateStr === todayStr
+                  const isPreCutoff = cell.dateStr < '2026-09-07'
 
                   return (
                     <button
                       key={cell.dateStr}
+                      disabled={isPreCutoff || !cell.isCurrentMonth}
                       onClick={() => {
+                        if (isPreCutoff) return
                         setSelectedDate(cell.dateStr)
                         setIsCalendarOpen(false)
                       }}
-                      className={`relative h-10 flex flex-col items-center justify-center rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
-                        !cell.isCurrentMonth
-                          ? 'text-slate-300 border-transparent hover:bg-slate-50'
+                      className={`relative h-10 flex flex-col items-center justify-center rounded-xl text-xs font-semibold transition-all border ${
+                        isPreCutoff
+                          ? 'text-slate-300 border-transparent cursor-not-allowed opacity-40'
+                          : !cell.isCurrentMonth
+                          ? 'text-slate-300 border-transparent hover:bg-slate-50 cursor-pointer'
                           : perf
-                          ? perf.cellBg
-                          : 'text-slate-700 border-transparent hover:bg-slate-100'
+                          ? `${perf.cellBg} cursor-pointer`
+                          : 'text-slate-700 border-transparent hover:bg-slate-100 cursor-pointer'
                       } ${isToday ? 'ring-2 ring-blue-600 ring-offset-1 font-black text-blue-900' : ''}`}
+                      title={isPreCutoff ? 'Tracking started on 07 Sep 2026' : undefined}
                     >
                       <span>{cell.dayNum}</span>
 
-                      {perf && cell.isCurrentMonth && (
+                      {perf && cell.isCurrentMonth && !isPreCutoff && (
                         <span className={`h-1.5 w-1.5 rounded-full ${perf.bgClass} mt-0.5`} />
                       )}
                     </button>
@@ -872,11 +978,40 @@ export function StudentReportView({ userId }: { userId: string }) {
                           </div>
                         </div>
 
-                        <div className="text-right">
-                          <span className="block text-xs font-bold text-slate-700">
-                            {day.completedCount} / {day.totalCount} Completed
-                          </span>
-                          <span className="text-[10px] text-blue-600 font-bold block mt-0.5">
+                        <div className="text-right flex flex-col items-end gap-1">
+                          <div className="flex items-center gap-2">
+                            <span className="block text-xs font-bold text-slate-700">
+                              {day.completedCount} / {day.totalCount} Completed
+                            </span>
+                            {(() => {
+                              const todayObj = new Date()
+                              const todayStr = todayObj.toLocaleDateString('en-CA')
+                              const yesterdayObj = new Date()
+                              yesterdayObj.setDate(yesterdayObj.getDate() - 1)
+                              const yesterdayStr = yesterdayObj.toLocaleDateString('en-CA')
+
+                              if (day.date === todayStr) {
+                                return (
+                                  <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full">
+                                    Today • Editable
+                                  </span>
+                                )
+                              }
+                              if (day.date === yesterdayStr) {
+                                return (
+                                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                                    Yesterday • Editable
+                                  </span>
+                                )
+                              }
+                              return (
+                                <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                                  <Lock className="h-3 w-3" /> Locked
+                                </span>
+                              )
+                            })()}
+                          </div>
+                          <span className="text-[10px] text-blue-600 font-bold block">
                             {day.percentage}% Score
                           </span>
                         </div>
@@ -886,8 +1021,13 @@ export function StudentReportView({ userId }: { userId: string }) {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           {mainTasks.map((task) => {
                             const isCompleted = !!day.task_data[task.id]
-                            const todayStr = new Date().toLocaleDateString('en-CA')
-                            const isEditable = day.date === todayStr
+                            const todayObj = new Date()
+                            const todayStr = todayObj.toLocaleDateString('en-CA')
+                            const yesterdayObj = new Date()
+                            yesterdayObj.setDate(yesterdayObj.getDate() - 1)
+                            const yesterdayStr = yesterdayObj.toLocaleDateString('en-CA')
+                            const isEditable = day.date === todayStr || day.date === yesterdayStr
+
                             return (
                               <div 
                                 key={task.id}
@@ -895,15 +1035,15 @@ export function StudentReportView({ userId }: { userId: string }) {
                                 className={`flex items-start justify-between gap-2.5 p-3 rounded-xl border select-none transition-all duration-150 ${
                                   !isEditable 
                                     ? 'cursor-not-allowed opacity-90' 
-                                    : 'cursor-pointer active:scale-[0.98]'
+                                    : 'cursor-pointer active:scale-[0.98] hover:shadow-sm'
                                 } ${
                                   isCompleted 
                                     ? 'bg-emerald-50 border-emerald-300 text-emerald-900' + (isEditable ? ' hover:bg-emerald-100' : '') 
                                     : 'bg-red-50 border-red-300 text-red-800' + (isEditable ? ' hover:bg-red-100' : '')
                                 }`}
-                                title={!isEditable ? "Past tasks cannot be edited (Read Only)" : undefined}
+                                title={!isEditable ? "Reports older than 2 days cannot be edited (Read Only)" : "Click to toggle completion"}
                               >
-                                <div className="flex items-start gap-2.5 min-w-0">
+                                <div className="flex items-start gap-2.5 min-w-0 flex-1 mr-2">
                                   <div className="mt-0.5 shrink-0">
                                     {isCompleted ? (
                                       <CheckCircle2 className="h-4.5 w-4.5 text-emerald-600 stroke-[2.5]" />
@@ -911,7 +1051,7 @@ export function StudentReportView({ userId }: { userId: string }) {
                                       <XCircle className="h-4.5 w-4.5 text-red-500 stroke-[2.5]" />
                                     )}
                                   </div>
-                                  <span className={`text-xs font-semibold leading-relaxed ${isCompleted ? 'text-emerald-800' : 'text-red-700'}`}>
+                                  <span className={`text-xs font-semibold leading-relaxed break-words whitespace-normal ${isCompleted ? 'text-emerald-800' : 'text-red-700'}`}>
                                     {task.label}
                                   </span>
                                 </div>
@@ -975,11 +1115,40 @@ export function StudentReportView({ userId }: { userId: string }) {
                       </div>
 
                       <div className="flex items-center gap-5">
-                        <div className="text-right">
-                          <span className="block text-xs font-bold text-slate-700">
-                            {day.completedCount} / {day.totalCount} Completed
-                          </span>
-                          <span className="text-[10px] text-blue-600 font-bold block mt-0.5">
+                        <div className="text-right flex flex-col items-end gap-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="block text-xs font-bold text-slate-700">
+                              {day.completedCount} / {day.totalCount}
+                            </span>
+                            {(() => {
+                              const todayObj = new Date()
+                              const todayStr = todayObj.toLocaleDateString('en-CA')
+                              const yesterdayObj = new Date()
+                              yesterdayObj.setDate(yesterdayObj.getDate() - 1)
+                              const yesterdayStr = yesterdayObj.toLocaleDateString('en-CA')
+
+                              if (day.date === todayStr) {
+                                return (
+                                  <span className="text-[9px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                                    Today • Editable
+                                  </span>
+                                )
+                              }
+                              if (day.date === yesterdayStr) {
+                                return (
+                                  <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                    Yesterday • Editable
+                                  </span>
+                                )
+                              }
+                              return (
+                                <span className="text-[9px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                                  <Lock className="h-2.5 w-2.5" /> Locked
+                                </span>
+                              )
+                            })()}
+                          </div>
+                          <span className="text-[10px] text-blue-600 font-bold block">
                             {day.percentage}% Score
                           </span>
                         </div>
@@ -994,8 +1163,13 @@ export function StudentReportView({ userId }: { userId: string }) {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           {mainTasks.map((task) => {
                             const isCompleted = !!day.task_data[task.id]
-                            const todayStr = new Date().toLocaleDateString('en-CA')
-                            const isEditable = day.date === todayStr
+                            const todayObj = new Date()
+                            const todayStr = todayObj.toLocaleDateString('en-CA')
+                            const yesterdayObj = new Date()
+                            yesterdayObj.setDate(yesterdayObj.getDate() - 1)
+                            const yesterdayStr = yesterdayObj.toLocaleDateString('en-CA')
+                            const isEditable = day.date === todayStr || day.date === yesterdayStr
+
                             return (
                               <div 
                                 key={task.id}
@@ -1003,15 +1177,15 @@ export function StudentReportView({ userId }: { userId: string }) {
                                 className={`flex items-start justify-between gap-2.5 p-3 rounded-xl border select-none transition-all duration-150 ${
                                   !isEditable 
                                     ? 'cursor-not-allowed opacity-90' 
-                                    : 'cursor-pointer active:scale-[0.98]'
+                                    : 'cursor-pointer active:scale-[0.98] hover:shadow-sm'
                                 } ${
                                   isCompleted 
                                     ? 'bg-emerald-50 border-emerald-300 text-emerald-900' + (isEditable ? ' hover:bg-emerald-100' : '') 
                                     : 'bg-red-50 border-red-300 text-red-800' + (isEditable ? ' hover:bg-red-100' : '')
                                 }`}
-                                title={!isEditable ? "Past tasks cannot be edited (Read Only)" : undefined}
+                                title={!isEditable ? "Reports older than 2 days cannot be edited (Read Only)" : "Click to toggle completion"}
                               >
-                                <div className="flex items-start gap-2.5 min-w-0">
+                                <div className="flex items-start gap-2.5 min-w-0 flex-1 mr-2">
                                   <div className="mt-0.5 shrink-0">
                                     {isCompleted ? (
                                       <CheckCircle2 className="h-4.5 w-4.5 text-emerald-600 stroke-[2.5]" />
@@ -1019,7 +1193,7 @@ export function StudentReportView({ userId }: { userId: string }) {
                                       <XCircle className="h-4.5 w-4.5 text-red-500 stroke-[2.5]" />
                                     )}
                                   </div>
-                                  <span className={`text-xs font-semibold leading-relaxed ${isCompleted ? 'text-emerald-800' : 'text-red-700'}`}>
+                                  <span className={`text-xs font-semibold leading-relaxed break-words whitespace-normal ${isCompleted ? 'text-emerald-800' : 'text-red-700'}`}>
                                     {task.label}
                                   </span>
                                 </div>

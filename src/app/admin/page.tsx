@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { 
-  getCurrentUser, logout, getStudents, getVideos, 
+  getCurrentUser, getCurrentUserAsync, logout, getStudents, getVideos, 
   addVideo, deleteVideo, resetStudentPasswordLocal, addStudentLocal,
   getStudentHistoryLast7Days, updateUserProfileLocal, deleteStudentLocal,
   getMainTasks, MainTask, addMainTaskLocal, updateMainTaskLocal, deleteMainTaskLocal, reorderMainTasks,
@@ -206,7 +206,10 @@ export default function AdminPage() {
   const fetchData = async () => {
     try {
       setStudentsLoading(true)
-      const user = getCurrentUser()
+      let user = getCurrentUser()
+      if (!user) {
+        user = await getCurrentUserAsync()
+      }
       if (!user || user.role !== 'admin') {
         router.replace('/login')
         return
@@ -1453,11 +1456,11 @@ export default function AdminPage() {
                           }}
                           className={`flex items-center justify-between p-5 sm:p-6 hover:bg-blue-50/50 transition group cursor-grab active:cursor-grabbing border-b border-transparent hover:border-slate-100 ${draggedIndex === idx ? 'opacity-40 bg-blue-50' : ''}`}
                         >
-                          <div className="flex items-center gap-3.5 min-w-0">
+                          <div className="flex items-center gap-3.5 min-w-0 flex-1 mr-3">
                             <span className="text-xs font-mono text-slate-600 bg-slate-100 border border-slate-200 w-6 h-6 flex items-center justify-center rounded-lg font-bold shrink-0">
                               {idx + 1}
                             </span>
-                            <span className="text-sm font-semibold text-slate-800 truncate">
+                            <span className="text-sm font-semibold text-slate-800 break-words whitespace-normal">
                               {task.label}
                             </span>
                           </div>

@@ -107,34 +107,28 @@ function AnimatedActivityDonut({ activePercent, activeStudents, inactiveStudents
           <circle
             cx="50" cy="50" r="38"
             stroke="#10b981" 
-            strokeWidth={hoveredSegment === 'active' ? 18 : 14} 
+            strokeWidth={hoveredSegment === 'active' ? 17 : 14} 
             fill="none"
             strokeDasharray={`${activeDash} ${circumference}`}
             strokeDashoffset={activeOffset}
             strokeLinecap="round"
-            className="transition-all duration-300 cursor-pointer"
+            className="transition-all duration-200 cursor-pointer"
             onMouseEnter={() => setHoveredSegment('active')}
             onMouseLeave={() => setHoveredSegment(null)}
-            style={{
-              filter: hoveredSegment === 'active' ? 'drop-shadow(0 0 10px rgba(16, 185, 129, 0.8))' : 'none'
-            }}
           />
 
           {/* Inactive Segment (Vibrant Orange) */}
           <circle
             cx="50" cy="50" r="38"
             stroke="#f97316" 
-            strokeWidth={hoveredSegment === 'inactive' ? 18 : 14} 
+            strokeWidth={hoveredSegment === 'inactive' ? 17 : 14} 
             fill="none"
             strokeDasharray={`${inactiveDash} ${circumference}`}
             strokeDashoffset={inactiveOffset}
             strokeLinecap="round"
-            className="transition-all duration-300 cursor-pointer"
+            className="transition-all duration-200 cursor-pointer"
             onMouseEnter={() => setHoveredSegment('inactive')}
             onMouseLeave={() => setHoveredSegment(null)}
-            style={{
-              filter: hoveredSegment === 'inactive' ? 'drop-shadow(0 0 10px rgba(249, 115, 22, 0.8))' : 'none'
-            }}
           />
         </svg>
 

@@ -216,6 +216,7 @@ export async function getStudentsAdminData(dateStrings?: string[]) {
       const { data, error: taskErr } = await supabaseAdmin
         .from('daily_tasks')
         .select('id, user_id, date, task_data, created_at')
+        .gte('date', '2026-09-07')
       if (taskErr) throw taskErr
       dailyTasks = data || []
     }
@@ -310,6 +311,7 @@ export async function getStudentAdminData(studentId: string) {
       .from('daily_tasks')
       .select('date')
       .eq('user_id', studentId)
+      .gte('date', '2026-09-07')
 
     if (taskErr) throw taskErr
 

@@ -2,6 +2,7 @@
 
 import { createClient } from './supabase/client'
 import { createStudentAuth, deleteStudentAuth, resetStudentPassword as resetAuthPassword } from '@/app/admin/actions'
+import { safeGetItem, safeSetItem, safeRemoveItem, safeGetCookie, safeSetCookie, safeRemoveCookie } from './safe-storage'
 
 export interface PersonalTask {
   id: string
@@ -48,12 +49,10 @@ const STORAGE_KEYS = {
 const isBrowser = () => typeof window !== 'undefined'
 
 export async function login(phone: string, pass: string): Promise<{ success: boolean; user?: User; error?: string }> {
-  if (isBrowser()) {
-    // Explicitly clear any stale session data before starting a new login
-    // This prevents stale state from interfering with the new session
-    localStorage.removeItem(STORAGE_KEYS.SESSION)
-    document.cookie = 'user_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax'
-  }
+  // Safely clear any stale session data before starting a new login
+  // This prevents stale state from interfering with the new session without throwing SecurityError
+  safeRemoveItem(STORAGE_KEYS.SESSION)
+  safeRemoveCookie('user_session')
 
   let normalizedPhone = phone.trim()
   if (normalizedPhone.toLowerCase() === 'admin1') {
@@ -133,10 +132,9 @@ export async function login(phone: string, pass: string): Promise<{ success: boo
       }
     }
 
-    if (isBrowser()) {
-      localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(user))
-      document.cookie = `user_session=${encodeURIComponent(JSON.stringify(user))}; path=/; max-age=604800; SameSite=Lax`
-    }
+    // Save session to safe storage and cookie (gracefully handles blocked storage)
+    safeSetItem(STORAGE_KEYS.SESSION, JSON.stringify(user))
+    safeSetCookie('user_session', encodeURIComponent(JSON.stringify(user)))
 
     return { success: true, user }
   } catch (err: any) {
@@ -145,17 +143,85 @@ export async function login(phone: string, pass: string): Promise<{ success: boo
 }
 
 export function logout() {
-  if (!isBrowser()) return
-  localStorage.removeItem(STORAGE_KEYS.SESSION)
-  document.cookie = 'user_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax'
+  safeRemoveItem(STORAGE_KEYS.SESSION)
+  safeRemoveCookie('user_session')
   const supabase = createClient()
   supabase.auth.signOut().catch(() => {})
 }
 
 export function getCurrentUser(): User | null {
-  if (!isBrowser()) return null
-  const session = localStorage.getItem(STORAGE_KEYS.SESSION)
-  return session ? JSON.parse(session) : null
+  // 1. Try safe storage (handles localStorage + in-memory fallback)
+  const session = safeGetItem(STORAGE_KEYS.SESSION)
+  if (session) {
+    try {
+      return JSON.parse(session)
+    } catch {
+      safeRemoveItem(STORAGE_KEYS.SESSION)
+    }
+  }
+
+  // 2. Try cookie fallback
+  const cookieVal = safeGetCookie('user_session')
+  if (cookieVal) {
+    try {
+      return JSON.parse(cookieVal)
+    } catch {
+      safeRemoveCookie('user_session')
+    }
+  }
+
+  return null
+}
+
+/**
+ * Async session fallback that queries Supabase Auth via cookies.
+ * Used when localStorage/memory has no session (e.g. mobile WebView with blocked storage).
+ */
+export async function getCurrentUserAsync(): Promise<User | null> {
+  const syncUser = getCurrentUser()
+  if (syncUser) return syncUser
+
+  try {
+    const supabase = createClient()
+    const { data: { user }, error } = await supabase.auth.getUser()
+    if (error || !user) return null
+
+    const { data: profile } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    const resolvedUser: User = profile ? {
+      id: profile.id,
+      phone: profile.phone || user.phone || '',
+      name: profile.name || user.user_metadata?.name || 'User',
+      role: profile.role as 'admin' | 'student',
+      created_at: profile.created_at || user.created_at,
+      batch: profile.batch || user.user_metadata?.batch,
+      skills: profile.skills || [],
+      personalTasks: profile.personal_tasks || [],
+      last_notification_read_at: profile.last_notification_read_at || null
+    } : {
+      id: user.id,
+      phone: user.phone || '',
+      name: user.user_metadata?.name || 'User',
+      role: (user.user_metadata?.role as 'admin' | 'student') || 'student',
+      created_at: user.created_at,
+      batch: user.user_metadata?.batch,
+      skills: [],
+      personalTasks: [],
+      last_notification_read_at: null
+    }
+
+    safeSetItem(STORAGE_KEYS.SESSION, JSON.stringify(resolvedUser))
+    safeSetCookie('user_session', encodeURIComponent(JSON.stringify(resolvedUser)))
+
+    return resolvedUser
+  } catch (e) {
+    console.error('Error fetching Supabase session in getCurrentUserAsync:', e)
+    return null
+  }
 }
 
 export async function getStudents(): Promise<User[]> {
@@ -354,8 +420,8 @@ export async function updateUserProfile(userId: string, name: string, phone: str
         phone: formattedPhone,
         batch: batch || currentSession.batch
       }
-      localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(updatedUser))
-      document.cookie = `user_session=${encodeURIComponent(JSON.stringify(updatedUser))}; path=/; max-age=604800; SameSite=Lax`
+      safeSetItem(STORAGE_KEYS.SESSION, JSON.stringify(updatedUser))
+      safeSetCookie('user_session', encodeURIComponent(JSON.stringify(updatedUser)))
     }
     return { success: true }
   } catch (e: any) {
@@ -380,8 +446,8 @@ export async function markNotificationsAsRead(userId: string): Promise<{ success
         ...currentSession,
         last_notification_read_at: timestamp
       }
-      localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(updatedUser))
-      document.cookie = `user_session=${encodeURIComponent(JSON.stringify(updatedUser))}; path=/; max-age=604800; SameSite=Lax`
+      safeSetItem(STORAGE_KEYS.SESSION, JSON.stringify(updatedUser))
+      safeSetCookie('user_session', encodeURIComponent(JSON.stringify(updatedUser)))
     }
     return { success: true }
   } catch (e: any) {
@@ -546,6 +612,7 @@ export async function getStudentAllTasks(userId: string): Promise<DailyTask[]> {
       .from('daily_tasks')
       .select('*')
       .eq('user_id', userId)
+      .gte('date', '2026-09-07')
       .order('date', { ascending: false })
 
     if (error) throw error
@@ -569,8 +636,8 @@ export async function updateStudentSkills(studentId: string, skills: string[]): 
     const currentSession = getCurrentUser()
     if (currentSession && currentSession.id === studentId) {
       const updatedUser = { ...currentSession, skills }
-      localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(updatedUser))
-      document.cookie = `user_session=${encodeURIComponent(JSON.stringify(updatedUser))}; path=/; max-age=604800; SameSite=Lax`
+      safeSetItem(STORAGE_KEYS.SESSION, JSON.stringify(updatedUser))
+      safeSetCookie('user_session', encodeURIComponent(JSON.stringify(updatedUser)))
     }
     return { success: true }
   } catch (e: any) {
@@ -593,7 +660,10 @@ export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
   for (let i = 6; i >= 0; i--) {
     const d = new Date()
     d.setDate(d.getDate() - i)
-    dateStrings.push(d.toLocaleDateString('en-CA'))
+    const dStr = d.toLocaleDateString('en-CA')
+    if (dStr >= '2026-09-07') {
+      dateStrings.push(dStr)
+    }
   }
 
   const studentIds = students.map(s => s.id)
@@ -634,7 +704,8 @@ export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
         totalPercentage += pct
       }
     })
-    const avg = Math.round(totalPercentage / 7)
+    const count = dateStrings.length || 1
+    const avg = Math.round(totalPercentage / count)
     return {
       id: student.id,
       name: student.name || 'Student',
@@ -658,8 +729,8 @@ export async function updateStudentPersonalTasks(studentId: string, tasks: Perso
     const currentSession = getCurrentUser()
     if (currentSession && currentSession.id === studentId) {
       const updatedUser = { ...currentSession, personalTasks: tasks }
-      localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(updatedUser))
-      document.cookie = `user_session=${encodeURIComponent(JSON.stringify(updatedUser))}; path=/; max-age=604800; SameSite=Lax`
+      safeSetItem(STORAGE_KEYS.SESSION, JSON.stringify(updatedUser))
+      safeSetCookie('user_session', encodeURIComponent(JSON.stringify(updatedUser)))
     }
     return { success: true }
   } catch (e: any) {

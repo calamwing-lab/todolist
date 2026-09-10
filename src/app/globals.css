@@ -329,12 +329,11 @@ textarea::placeholder {
 }
 
 .donut-segment-hover {
-  transition: stroke-width 0.25s ease, filter 0.25s ease, opacity 0.25s ease;
+  transition: stroke-width 0.25s ease, opacity 0.25s ease;
   cursor: pointer;
 }
 
 .donut-segment-hover:hover {
   stroke-width: 17;
-  filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.5));
 }
 

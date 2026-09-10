@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 import { Download, CheckCircle2, X, Smartphone } from 'lucide-react'
+import { safeGetItem, safeSetItem } from '@/utils/safe-storage'
 
 export function PWAInstallPrompt() {
   const promptRef = useRef<any>(null)
@@ -12,6 +13,7 @@ export function PWAInstallPrompt() {
 
   useEffect(() => {
     if (
+      safeGetItem('pwa_app_installed') === 'true' ||
       window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as any).standalone === true ||
       document.referrer.includes('android-app://')
@@ -37,6 +39,7 @@ export function PWAInstallPrompt() {
     }
 
     const onInstalled = () => {
+      safeSetItem('pwa_app_installed', 'true')
       setIsStandalone(true)
       setShowPanel(false)
       promptRef.current = null
@@ -71,6 +74,7 @@ export function PWAInstallPrompt() {
       await prompt.prompt()
       const { outcome } = await prompt.userChoice
       if (outcome === 'accepted') {
+        safeSetItem('pwa_app_installed', 'true')
         setInstalled(true)
         setShowPanel(false)
         setTimeout(() => setIsStandalone(true), 1500)

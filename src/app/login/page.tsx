@@ -131,8 +131,7 @@ export default function LoginPage() {
         // Auto login
         const loginRes = await login(formattedPhone, regPassword)
         if (loginRes.success && loginRes.user) {
-          router.refresh()
-          router.push('/student')
+          window.location.href = '/student'
         } else {
           // Fallback to login screen
           setIsRegistering(false)
@@ -142,12 +141,20 @@ export default function LoginPage() {
           setLoading(false)
         }
       } else {
-        setError(res.error || 'Registration failed.')
+        const errMsg = res.error || 'Registration failed.'
+        if (errMsg.toLowerCase().includes('already') || errMsg.toLowerCase().includes('exists')) {
+          setIsRegistering(false)
+          setPhone(rawPhone)
+          setPassword(regPassword)
+          setError('This phone number is already registered. Please sign in with your password below.')
+        } else {
+          setError(errMsg)
+        }
         setLoading(false)
       }
     } catch (err: any) {
       console.error('Registration error:', err)
-      setError(err.message || 'An unexpected error occurred during registration.')
+      setError(err?.message || 'An unexpected error occurred during registration.')
       setLoading(false)
     }
   }
